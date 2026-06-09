@@ -180,7 +180,6 @@ namespace OpenBurningSuite.Xp
             ToolStripMenuItem tools = new ToolStripMenuItem("Tools");
             ToolStripMenuItem iso = new ToolStripMenuItem("ISO");
             iso.DropDownItems.Add("Change Volume Label...", null, delegate { _tabs.SelectedIndex = 1; FocusVolumeLabels(); });
-            iso.DropDownItems.Add("Display IFO Layer Break Information...", null, delegate { ShowLayerBreakInformation(); });
             tools.DropDownItems.Add(iso);
 
             ToolStripMenuItem drive = new ToolStripMenuItem("Drive");
@@ -192,22 +191,10 @@ namespace OpenBurningSuite.Xp
             drive.DropDownItems.Add("Eject", null, delegate { EjectSelectedDrive(); });
             drive.DropDownItems.Add(new ToolStripSeparator());
             drive.DropDownItems.Add("Lock Tray", null, delegate { RunSelectedDriveCommand("-lock", "Lock tray"); });
-            drive.DropDownItems.Add("Unlock Tray", null, delegate { RunSelectedDriveCommand("-load", "Unlock tray"); });
-            drive.DropDownItems.Add(new ToolStripSeparator());
-            drive.DropDownItems.Add("Send BurnerMAX Payload", null, delegate { ShowDriveCommandNotice("BurnerMAX payload"); });
-            ToolStripMenuItem readSpeed = new ToolStripMenuItem("Set Read Speed");
-            readSpeed.DropDownItems.Add("MAX", null, delegate { ShowDriveCommandNotice("Set read speed to MAX"); });
-            readSpeed.DropDownItems.Add("8x", null, delegate { ShowDriveCommandNotice("Set read speed to 8x"); });
-            readSpeed.DropDownItems.Add("4x", null, delegate { ShowDriveCommandNotice("Set read speed to 4x"); });
-            drive.DropDownItems.Add(readSpeed);
             ToolStripMenuItem eraseDisc = new ToolStripMenuItem("Erase Disc");
             eraseDisc.DropDownItems.Add("Quick", null, delegate { _fullEraseCheck.Checked = false; _tabs.SelectedIndex = 4; EraseDisc(); });
             eraseDisc.DropDownItems.Add("Full", null, delegate { _fullEraseCheck.Checked = true; _tabs.SelectedIndex = 4; EraseDisc(); });
             drive.DropDownItems.Add(eraseDisc);
-            ToolStripMenuItem smartErase = new ToolStripMenuItem("SmartErase");
-            smartErase.DropDownItems.Add("Quick Erase Rewritable", null, delegate { _fullEraseCheck.Checked = false; _tabs.SelectedIndex = 4; EraseDisc(); });
-            smartErase.DropDownItems.Add("Full Erase Rewritable", null, delegate { _fullEraseCheck.Checked = true; _tabs.SelectedIndex = 4; EraseDisc(); });
-            drive.DropDownItems.Add(smartErase);
             drive.DropDownItems.Add(new ToolStripSeparator());
             drive.DropDownItems.Add("Synchronise Cache", null, delegate { RunSelectedDriveCommand("-fix", "Synchronise cache / fixate"); });
             ToolStripMenuItem close = new ToolStripMenuItem("Close");
@@ -216,13 +203,6 @@ namespace OpenBurningSuite.Xp
             drive.DropDownItems.Add(close);
             drive.DropDownItems.Add(new ToolStripSeparator());
             drive.DropDownItems.Add("Change Advanced Settings...", null, delegate { ShowSettingsDialog(); });
-            drive.DropDownItems.Add("Change Book Type...", null, delegate { ShowDriveCommandNotice("Change book type"); });
-            drive.DropDownItems.Add("Sector Viewer...", null, delegate { ShowDriveCommandNotice("Sector viewer"); });
-            drive.DropDownItems.Add(new ToolStripSeparator());
-            drive.DropDownItems.Add("Display IFO Layer Break Information...", null, delegate { ShowLayerBreakInformation(); });
-            ToolStripMenuItem regionalCode = new ToolStripMenuItem("Regional Code");
-            regionalCode.DropDownItems.Add("Display", null, delegate { ShowDriveCommandNotice("Regional code"); });
-            drive.DropDownItems.Add(regionalCode);
             drive.DropDownItems.Add("Capabilities", null, delegate { ShowDeviceCapabilities(); });
             drive.DropDownItems.Add("Family Tree", null, delegate { ShowFamilyTree(); });
             drive.DropDownItems.Add(new ToolStripSeparator());
@@ -234,10 +214,6 @@ namespace OpenBurningSuite.Xp
             tools.DropDownItems.Add("Create MDS File...", null, delegate { CreateDescriptorFile(".mds"); });
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add("Search for SCSI / ATAPI devices", null, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
-            tools.DropDownItems.Add(new ToolStripSeparator());
-            tools.DropDownItems.Add("Automatic Write Speed...", null, delegate { ShowSettingsDialog(); });
-            tools.DropDownItems.Add("Filter Driver Load Order...", null, delegate { ShowFilterDriverDialog(); });
-            tools.DropDownItems.Add("Reset DMA...", null, delegate { ShowDriveCommandNotice("Reset DMA"); });
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add("Settings...", null, delegate { ShowSettingsDialog(); });
             menu.Items.Add(tools);
@@ -545,7 +521,7 @@ namespace OpenBurningSuite.Xp
             group.Controls.Add(_verifyAfterCopyCheck);
 
             Label note = new Label();
-            note.Text = "Copies standard data discs to ISO-style images using the bundled readcd backend. Audio CDs and special multi-session layouts are planned for a later release.";
+            note.Text = "Copies standard data discs to ISO-style images using the bundled readcd backend.";
             note.Location = new Point(130, 136);
             note.Size = new Size(560, 48);
             note.ForeColor = Color.FromArgb(72, 72, 72);
@@ -641,11 +617,11 @@ namespace OpenBurningSuite.Xp
                 462,
                 66,
                 "Audio && Music Wizard",
-                "Copy music files as a data disc. Red Book audio CD authoring is planned for a later release.",
+                "Copy music files as a data disc, then burn or save the resulting image.",
                 "Music data disc",
                 delegate { StartBuildWizard("MUSIC_DISC"); },
-                "Audio CD",
-                delegate { ShowPlannedWizardNotice("Audio CD authoring and audio ripping are planned for a later release."); });
+                "Burn image",
+                delegate { StartBurnWizard("Audio && Music Wizard"); });
 
             CreateWizardCard(
                 group,
@@ -663,7 +639,7 @@ namespace OpenBurningSuite.Xp
                 462,
                 196,
                 "Game Disc Wizard",
-                "Burn or verify an existing game image. Console-specific patching is planned for a later release.",
+                "Burn or verify an existing game image.",
                 "Burn game image",
                 delegate { StartBurnWizard("Game Disc Wizard"); },
                 "Verify image",
@@ -1533,13 +1509,6 @@ namespace OpenBurningSuite.Xp
             });
         }
 
-        private void ShowDriveCommandNotice(string commandName)
-        {
-            string message = commandName + " is a drive/vendor-specific command. LuxBurn does not send it automatically unless a safe backend is available for the selected drive.";
-            Log(message);
-            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
         private void ShowSettingsDialog()
         {
             Form dialog = new Form();
@@ -1565,16 +1534,6 @@ namespace OpenBurningSuite.Xp
                 _verifyAfterBurnCheck.Checked = ((CheckBox)dialog.Controls[1]).Checked;
                 _verifyAfterCopyCheck.Checked = ((CheckBox)dialog.Controls[2]).Checked;
             }
-        }
-
-        private void ShowFilterDriverDialog()
-        {
-            StringBuilder text = new StringBuilder();
-            text.AppendLine("Filter Driver Load Order");
-            text.AppendLine();
-            text.AppendLine("This system reports optical drives through Windows storage drivers.");
-            text.AppendLine("Use Device Manager for detailed filter-driver inspection.");
-            ShowTextDialog("Filter Driver Load Order", text.ToString());
         }
 
         private void ShowDeviceCapabilities()
@@ -1855,13 +1814,6 @@ namespace OpenBurningSuite.Xp
 
             if (_copyOutputText.Text.Trim().Length == 0)
                 BrowseSaveIso(_copyOutputText);
-        }
-
-        private void ShowPlannedWizardNotice(string message)
-        {
-            SetStatus("Wizard feature is planned for a later release.");
-            Log(message);
-            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private static Image LoadButtonAsset(string fileName)
