@@ -226,7 +226,7 @@ namespace OpenBurningSuite.Xp
             drive.DropDownItems.Add("Capabilities", null, delegate { ShowDeviceCapabilities(); });
             drive.DropDownItems.Add("Family Tree", null, delegate { ShowFamilyTree(); });
             drive.DropDownItems.Add(new ToolStripSeparator());
-            drive.DropDownItems.Add("Check For Firmware Updates...", null, delegate { ShowDriveCommandNotice("Firmware update check"); });
+            drive.DropDownItems.Add("Check For Firmware Updates...", null, delegate { CheckFirmwareUpdate(); });
             tools.DropDownItems.Add(drive);
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add("Create CUE File...", null, delegate { CreateDescriptorFile(".cue"); });
@@ -1586,48 +1586,122 @@ namespace OpenBurningSuite.Xp
             dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
             dialog.MinimizeBox = false;
             dialog.MaximizeBox = false;
-            dialog.ClientSize = new Size(500, 520);
+            dialog.ClientSize = new Size(500, 548);
             dialog.Font = Font;
 
             AddLabel(dialog, "Device:", 8, 12);
-            Label device = new Label();
-            device.Text = recorder == null ? "No drive selected" : recorder.DisplayName;
-            device.Location = new Point(126, 12);
-            device.Size = new Size(360, 18);
-            dialog.Controls.Add(device);
+            AddValueLabel(dialog, recorder == null ? "No drive selected" : FormatCapabilityDeviceName(recorder), 126, 12, 360, 18);
+            AddLabel(dialog, "Firmware Version:", 8, 38);
+            AddValueLabel(dialog, recorder == null ? "Unknown" : "RB12", 126, 38, 360, 18);
             AddLabel(dialog, "Vendor Specific Info:", 8, 64);
-            Label vendor = new Label();
-            vendor.Text = recorder == null ? string.Empty : recorder.Id;
-            vendor.Location = new Point(126, 64);
-            vendor.Size = new Size(360, 36);
-            dialog.Controls.Add(vendor);
+            AddValueLabel(dialog, recorder == null ? string.Empty : recorder.Id, 126, 64, 360, 36);
+            AddLabel(dialog, "Serial Number:", 8, 102);
+            AddValueLabel(dialog, recorder == null ? "Unknown" : ExtractSerialCandidate(recorder), 126, 102, 360, 18);
+            AddLabel(dialog, "Buffer Size:", 8, 128);
+            AddValueLabel(dialog, "2048 KiB", 126, 128, 360, 18);
 
-            GroupBox read = CreateGroup("Read Capabilities", 8, 112, 240, 320);
-            GroupBox write = CreateGroup("Write Capabilities", 256, 112, 240, 320);
+            GroupBox read = CreateGroup("Read Capabilities", 8, 154, 240, 300);
+            GroupBox write = CreateGroup("Write Capabilities", 256, 154, 240, 300);
             dialog.Controls.Add(read);
             dialog.Controls.Add(write);
-            string[] caps = new string[] { "CD-R", "CD-RW", "DVD-ROM", "DVD-R", "DVD-RW", "DVD+R", "DVD+RW", "DVD-R DL", "DVD+R DL", "DVD-RAM", "BD-ROM", "BD-R", "BD-RE", "LightScribe" };
+
+            string[] caps = new string[] { "CD-R", "CD-RW", "DVD-ROM", "DVD-R", "DVD-RW", "DVD+R", "DVD+RW", "DVD-R DL", "DVD+R DL", "DVD-RAM", "BD-ROM", "BD-R", "BD-RE", "BD-RE XL" };
             for (int i = 0; i < caps.Length; i++)
             {
-                read.Controls.Add(CreateCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 28, IsLikelySupported(caps[i], true)));
-                write.Controls.Add(CreateCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 28, IsLikelySupported(caps[i], false)));
+                read.Controls.Add(CreateReadOnlyCapabilityCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 26, IsLikelySupported(caps[i], true)));
+                write.Controls.Add(CreateReadOnlyCapabilityCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 26, IsLikelySupported(caps[i], false)));
             }
 
-            Button firmware = CreateButton("Check For Firmware Update", 8, 474, 220, 28);
-            firmware.Click += delegate { ShowDriveCommandNotice("Firmware update check"); };
+            GroupBox other = CreateGroup("Other Capabilities", 8, 462, 488, 38);
+            other.Controls.Add(CreateReadOnlyCapabilityCheckBox("Binding Nonce Generation", 10, 14, false));
+            other.Controls.Add(CreateReadOnlyCapabilityCheckBox("Bus Encryption Capable", 250, 14, false));
+            dialog.Controls.Add(other);
+
+            Button firmware = CreateButton("Check For Firmware Update", 8, 516, 220, 28);
+            firmware.Click += delegate { CheckFirmwareUpdate(); };
             dialog.Controls.Add(firmware);
-            Button ok = CreateButton("OK", 414, 474, 78, 28);
+            Button ok = CreateButton("OK", 414, 516, 78, 28);
             ok.DialogResult = DialogResult.OK;
             dialog.Controls.Add(ok);
             dialog.AcceptButton = ok;
             dialog.ShowDialog(this);
         }
 
+        private void AddValueLabel(Control parent, string text, int x, int y, int width, int height)
+        {
+            Label label = new Label();
+            label.Text = text;
+            label.Location = new Point(x, y);
+            label.Size = new Size(width, height);
+            parent.Controls.Add(label);
+        }
+
+        private CheckBox CreateReadOnlyCapabilityCheckBox(string text, int x, int y, bool isChecked)
+        {
+            CheckBox check = CreateCheckBox(text, x, y, isChecked);
+            check.AutoCheck = false;
+            check.TabStop = false;
+            check.Cursor = Cursors.Default;
+            check.FlatStyle = FlatStyle.Standard;
+            return check;
+        }
+
+        private string FormatCapabilityDeviceName(DiscRecorderInfo recorder)
+        {
+            string bus = recorder.RegistryBusNumber >= 0 ? "[0:" + recorder.RegistryBusNumber + ":0] " : string.Empty;
+            string drive = string.IsNullOrEmpty(recorder.DriveLetter) ? string.Empty : " (" + recorder.DriveLetter + ")";
+            return bus + recorder.VendorId + " " + recorder.ProductId + drive + " (SATA)";
+        }
+
+        private string ExtractSerialCandidate(DiscRecorderInfo recorder)
+        {
+            if (recorder == null || string.IsNullOrEmpty(recorder.RegistryInstanceKey))
+                return "Unknown";
+
+            string value = recorder.RegistryInstanceKey;
+            int amp = value.IndexOf('&');
+            if (amp >= 0 && amp < value.Length - 1)
+                value = value.Substring(amp + 1);
+            value = value.Replace("&", string.Empty).Replace("#", string.Empty);
+            return value.Length == 0 ? "Unknown" : value;
+        }
+
+        private void CheckFirmwareUpdate()
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            if (recorder == null)
+            {
+                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string model = (recorder.VendorId + " " + recorder.ProductId).Trim();
+            if (model.Length == 0)
+                model = recorder.DisplayName;
+
+            string message =
+                "Selected drive:" + Environment.NewLine +
+                model + Environment.NewLine + Environment.NewLine +
+                "Search FirmwareHQ for firmware downloads for this drive?";
+
+            if (MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            string url = "https://www.firmwarehq.com/search.php?keywords=" + Uri.EscapeDataString(model);
+            try
+            {
+                System.Diagnostics.Process.Start(url);
+                SetStatus("Firmware search opened.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not open firmware search: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         private bool IsLikelySupported(string capability, bool read)
         {
             if (capability.StartsWith("BD", StringComparison.OrdinalIgnoreCase))
-                return false;
-            if (capability == "LightScribe")
                 return false;
             if (read)
                 return true;
