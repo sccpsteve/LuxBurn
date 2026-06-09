@@ -81,6 +81,7 @@ namespace LuxBurn
         private string _projectPath;
         private CancellationTokenSource _burnCancellation;
         private bool _burnInProgress;
+        private bool _redrawSuspended;
 
         public MainForm()
         {
@@ -90,6 +91,7 @@ namespace LuxBurn
             Size = new Size(1280, 760);
             Font = new Font("Tahoma", 8.25f);
             BackColor = Color.FromArgb(240, 240, 236);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
 
             Icon windowIcon = LoadWindowIcon();
             if (windowIcon != null)
@@ -278,6 +280,7 @@ namespace LuxBurn
             _tabs = new TabControl();
             _tabs.Dock = DockStyle.Fill;
             _tabs.Padding = new Point(12, 5);
+            _tabs.Selecting += delegate { BeginVisualTransition(); };
             _tabs.SelectedIndexChanged += delegate { UpdateSidebarVisibility(); };
             parent.Controls.Add(_tabs);
 
@@ -298,12 +301,53 @@ namespace LuxBurn
 
             bool hideSidebar = _tabs.SelectedIndex == 6;
             if (_mainSplit.Panel1Collapsed == hideSidebar)
+            {
+                EndVisualTransitionSoon();
+                return;
+            }
+
+            SuspendLayout();
+            _mainSplit.SuspendLayout();
+            try
+            {
+                if (!hideSidebar)
+                    _mainSplit.SplitterDistance = OperationRailWidth;
+
+                _mainSplit.Panel1Collapsed = hideSidebar;
+            }
+            finally
+            {
+                _mainSplit.ResumeLayout(true);
+                ResumeLayout(true);
+                EndVisualTransitionSoon();
+            }
+        }
+
+        private void BeginVisualTransition()
+        {
+            if (_redrawSuspended || !IsHandleCreated)
                 return;
 
-            if (!hideSidebar)
-                _mainSplit.SplitterDistance = OperationRailWidth;
+            _redrawSuspended = true;
+            SendMessage(Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
+        }
 
-            _mainSplit.Panel1Collapsed = hideSidebar;
+        private void EndVisualTransitionSoon()
+        {
+            if (!_redrawSuspended || !IsHandleCreated)
+                return;
+
+            BeginInvoke(new MethodInvoker(EndVisualTransition));
+        }
+
+        private void EndVisualTransition()
+        {
+            if (!_redrawSuspended || !IsHandleCreated)
+                return;
+
+            SendMessage(Handle, WM_SETREDRAW, new IntPtr(1), IntPtr.Zero);
+            _redrawSuspended = false;
+            Invalidate(true);
         }
 
         private TabPage CreateDriveTab()
@@ -641,12 +685,12 @@ namespace LuxBurn
 
             EzModeWheel wheel = new EzModeWheel();
             wheel.Location = new Point(72, 108);
-            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(31, 9), new Rectangle(104, 121, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
-            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(173, 9), new Rectangle(204, 121, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
-            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(215, 91), new Rectangle(288, 184, 92, 42), delegate { StartCopyWizard(); });
-            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(192, 195), new Rectangle(204, 271, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
-            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(12, 195), new Rectangle(104, 271, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
-            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(8, 91), new Rectangle(20, 184, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(24, 7), new Rectangle(98, 121, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
+            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(180, 7), new Rectangle(210, 121, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
+            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(224, 94), new Rectangle(296, 184, 92, 42), delegate { StartCopyWizard(); });
+            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(184, 195), new Rectangle(196, 271, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
+            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(20, 195), new Rectangle(112, 271, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
+            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(0, 94), new Rectangle(12, 184, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
             surface.Controls.Add(wheel);
 
             return page;
@@ -2580,6 +2624,11 @@ namespace LuxBurn
 
         [DllImport("winmm.dll", CharSet = CharSet.Unicode, EntryPoint = "mciSendStringW")]
         private static extern int MciSendString(string command, string returnValue, int returnLength, IntPtr callback);
+
+        private const int WM_SETREDRAW = 0x000B;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int message, IntPtr wParam, IntPtr lParam);
 
         private void BrowseFolder(TextBox target)
         {
