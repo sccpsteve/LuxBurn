@@ -2723,6 +2723,14 @@ namespace LuxBurn
                 if (e.Error != null)
                 {
                     SetStatus("Ready");
+                    WebException webError = e.Error as WebException;
+                    HttpWebResponse response = webError == null ? null : webError.Response as HttpWebResponse;
+                    if (!manual && response != null && response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        Log("Update manifest is not published yet.");
+                        return;
+                    }
+
                     Log("Update check failed: " + e.Error.Message);
                     if (manual)
                         MessageBox.Show(this, "Could not check for updates." + Environment.NewLine + e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);

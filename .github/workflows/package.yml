@@ -44,8 +44,8 @@ jobs:
           $notes = @"
           Automatic build from commit $env:GITHUB_SHA.
 
-          Download LuxBurn-v1.4-setup.exe for the installer.
-          Download LuxBurn-v1.4-portable.zip for the portable package.
+          Download LuxBurn-v1.5-setup.exe for the installer.
+          Download LuxBurn-v1.5-portable.zip for the portable package.
           "@
 
           git config user.name "github-actions[bot]"
@@ -56,9 +56,9 @@ jobs:
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release edit $tag --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
-            gh release upload $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag dist\LuxBurn-v1.5-portable.zip dist\LuxBurn-v1.5-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
+            gh release create $tag dist\LuxBurn-v1.5-portable.zip dist\LuxBurn-v1.5-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
           }
 
       - name: Verify public download links
@@ -66,8 +66,8 @@ jobs:
         shell: pwsh
         run: |
           $urls = @(
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.4-setup.exe",
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.4-portable.zip",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5-setup.exe",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5-portable.zip",
             "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-update.json"
           )
 

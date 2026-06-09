@@ -1,5 +1,7 @@
 #define AppName "LuxBurn"
-#define AppVersion "1.4"
+#ifndef AppVersion
+  #define AppVersion "1.5"
+#endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
 
@@ -16,7 +18,7 @@ DefaultDirName={pf}\LuxBurn
 DefaultGroupName=LuxBurn
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename=LuxBurn-v1.4-setup
+OutputBaseFilename=LuxBurn-v{#AppVersion}-setup
 SetupIconFile=..\LuxBurn\Assets\Brand\LBWindowLogo.ico
 UninstallDisplayIcon={app}\LuxBurn.exe
 Compression=lzma/ultra
@@ -40,4 +42,3 @@ Name: "{commondesktop}\LuxBurn"; Filename: "{app}\LuxBurn.exe"; WorkingDir: "{ap
 
 [Run]
 Filename: "{app}\LuxBurn.exe"; Description: "{cm:LaunchProgram,LuxBurn}"; Flags: nowait postinstall skipifsilent
-

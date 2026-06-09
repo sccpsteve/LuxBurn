@@ -4,7 +4,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "APP_NAME=LuxBurn"
-set "APP_VERSION=1.4"
+set "APP_VERSION=1.5"
 set "ROOT=%CD%"
 set "RELEASE=%ROOT%\LuxBurn\bin\Release"
 set "DIST=%ROOT%\dist"
@@ -59,7 +59,7 @@ if not defined ISCC (
     exit /b 1
 )
 
-"%ISCC%" "%ROOT%\packaging\LuxBurn.iss"
+"%ISCC%" /DAppVersion="%APP_VERSION%" "%ROOT%\packaging\LuxBurn.iss"
 if errorlevel 1 exit /b 1
 
 echo Creating update manifest...
