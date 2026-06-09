@@ -60,11 +60,22 @@ LuxBurn\bin\Release\LuxBurn.exe
 
 ## Release Artifact
 
-The v1.4 release zip is created as:
+Build both release packages:
 
 ```cmd
-LuxBurn-v1.4.zip
+package.cmd
 ```
+
+This creates:
+
+```cmd
+dist\LuxBurn-v1.4-portable.zip
+dist\LuxBurn-v1.4-setup.exe
+```
+
+The portable package runs anywhere after extraction. The setup package installs LuxBurn for the current Windows user and creates Start Menu and Desktop shortcuts.
+
+GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source.
 
 ## Notes
 

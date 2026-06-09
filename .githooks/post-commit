@@ -1,0 +1,13 @@
+#!/bin/sh
+
+changed="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+
+case "$changed" in
+  *LuxBurn/*|*build-xp.cmd*|*package.cmd*|*packaging/*)
+    echo "Updating LuxBurn packages for this commit..."
+    cmd.exe //c package.cmd
+    ;;
+  *)
+    echo "LuxBurn package hook: no app changes detected."
+    ;;
+esac
