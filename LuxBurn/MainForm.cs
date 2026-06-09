@@ -27,6 +27,7 @@ namespace LuxBurn
 
         private ComboBox _driveCombo;
         private ComboBox _burnDriveCombo;
+        private ComboBox _buildBurnDriveCombo;
         private ListView _driveList;
         private TextBox _buildSourceText;
         private TextBox _buildOutputText;
@@ -39,6 +40,7 @@ namespace LuxBurn
         private ComboBox _buildDataTypeCombo;
         private ComboBox _buildFileSystemCombo;
         private ComboBox _buildUdfRevisionCombo;
+        private ComboBox _folderPlacementCombo;
         private CheckBox _preservePathsCheck;
         private CheckBox _recurseSubdirectoriesCheck;
         private CheckBox _includeHiddenFilesCheck;
@@ -71,6 +73,7 @@ namespace LuxBurn
         private Label _statusLabel;
         private Control _refreshButton;
         private Button _buildButton;
+        private Button _buildAndBurnButton;
         private Button _burnButton;
         private Button _abortButton;
         private Button _copyButton;
@@ -96,7 +99,7 @@ namespace LuxBurn
             Size = new Size(1280, 760);
             Font = new Font("Tahoma", 8.25f);
             BackColor = Color.FromArgb(240, 240, 236);
-            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
             Icon windowIcon = LoadWindowIcon();
             if (windowIcon != null)
@@ -107,6 +110,18 @@ namespace LuxBurn
             RefreshDrives();
             FormClosing += MainFormFormClosing;
             Shown += delegate { BeginInvoke(new MethodInvoker(delegate { CheckForUpdates(false); })); };
+        }
+
+        protected override void OnResizeBegin(EventArgs e)
+        {
+            BeginVisualTransition();
+            base.OnResizeBegin(e);
+        }
+
+        protected override void OnResizeEnd(EventArgs e)
+        {
+            base.OnResizeEnd(e);
+            EndVisualTransition();
         }
 
         private void BuildInterface()
@@ -179,7 +194,16 @@ namespace LuxBurn
             file.DropDownItems.Add("Remove all items", null, delegate { ClearBuildItems(); });
             file.DropDownItems.Add(new ToolStripSeparator());
             file.DropDownItems.Add("Calculate", null, delegate { CalculateBuildImageInformation(); });
-            file.DropDownItems.Add("Write", null, delegate { _tabs.SelectedIndex = 2; BurnImage(); });
+            file.DropDownItems.Add("Write", null, delegate
+            {
+                if (_tabs != null && _tabs.SelectedIndex == 1)
+                    BuildAndBurnImage();
+                else
+                {
+                    _tabs.SelectedIndex = 2;
+                    BurnImage();
+                }
+            });
             file.DropDownItems.Add(new ToolStripSeparator());
             file.DropDownItems.Add("New Project", null, delegate { NewProject(); });
             file.DropDownItems.Add("Load Most Recent Project", null, delegate { LoadMostRecentProject(); });
@@ -466,13 +490,13 @@ namespace LuxBurn
             _buildButton.Click += delegate { BuildImage(); };
             group.Controls.Add(_buildButton);
 
-            Button calculate = CreateButton("Calculate", 262, 510, 100, 29);
+            _buildAndBurnButton = CreateButton("Build and burn", 262, 510, 128, 29);
+            _buildAndBurnButton.Click += delegate { BuildAndBurnImage(); };
+            group.Controls.Add(_buildAndBurnButton);
+
+            Button calculate = CreateButton("Calculate", 402, 510, 100, 29);
             calculate.Click += delegate { CalculateBuildImageInformation(); };
             group.Controls.Add(calculate);
-
-            Button write = CreateButton("Write", 374, 510, 90, 29);
-            write.Click += delegate { BuildThenOpenBurn(); };
-            group.Controls.Add(write);
 
             return page;
         }
@@ -819,25 +843,32 @@ namespace LuxBurn
             info.ReadOnly = true;
             info.ScrollBars = ScrollBars.Vertical;
             info.Location = new Point(10, 12);
-            info.Size = new Size(382, 230);
+            info.Size = new Size(382, 178);
             info.Text = GetSelectedRecorderDisplay() + Environment.NewLine + "Current Profile: " + GetCurrentMediaStatus();
             page.Controls.Add(info);
 
-            AddLabel(page, "Write Speed:", 10, 258);
+            AddLabel(page, "Target Drive:", 10, 204);
+            _buildBurnDriveCombo = new ComboBox();
+            _buildBurnDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _buildBurnDriveCombo.Location = new Point(96, 200);
+            _buildBurnDriveCombo.Size = new Size(286, 22);
+            page.Controls.Add(_buildBurnDriveCombo);
+
+            AddLabel(page, "Write Speed:", 10, 240);
             ComboBox speed = new ComboBox();
             speed.DropDownStyle = ComboBoxStyle.DropDownList;
             speed.Items.AddRange(new object[] { "AWS", "MAX", "16x", "8x", "4x" });
             speed.SelectedIndex = 0;
-            speed.Location = new Point(96, 254);
+            speed.Location = new Point(96, 236);
             speed.Size = new Size(92, 22);
             page.Controls.Add(speed);
 
-            AddLabel(page, "Copies:", 10, 286);
+            AddLabel(page, "Copies:", 10, 268);
             ComboBox copies = new ComboBox();
             copies.DropDownStyle = ComboBoxStyle.DropDownList;
             copies.Items.AddRange(new object[] { "1", "2", "3", "4", "5" });
             copies.SelectedIndex = 0;
-            copies.Location = new Point(96, 282);
+            copies.Location = new Point(96, 264);
             copies.Size = new Size(92, 22);
             page.Controls.Add(copies);
             return page;
@@ -859,22 +890,26 @@ namespace LuxBurn
             _buildUdfRevisionCombo = CreateDropDown(146, 80, 90, new object[] { "1.02", "1.50", "2.00", "2.01" });
             page.Controls.Add(_buildUdfRevisionCombo);
 
-            _preservePathsCheck = CreateCheckBox("Preserve Full Pathnames", 18, 124, false);
+            AddLabel(page, "Folder Placement:", 18, 114);
+            _folderPlacementCombo = CreateDropDown(146, 110, 220, new object[] { "Put folder contents at disc root", "Keep selected folders as folders" });
+            page.Controls.Add(_folderPlacementCombo);
+
+            _preservePathsCheck = CreateCheckBox("Preserve Full Pathnames", 18, 148, false);
             page.Controls.Add(_preservePathsCheck);
-            _recurseSubdirectoriesCheck = CreateCheckBox("Recurse Subdirectories", 18, 148, true);
+            _recurseSubdirectoriesCheck = CreateCheckBox("Recurse Subdirectories", 18, 172, true);
             page.Controls.Add(_recurseSubdirectoriesCheck);
-            _includeHiddenFilesCheck = CreateCheckBox("Include Hidden Files", 18, 186, false);
+            _includeHiddenFilesCheck = CreateCheckBox("Include Hidden Files", 18, 210, false);
             page.Controls.Add(_includeHiddenFilesCheck);
-            _includeSystemFilesCheck = CreateCheckBox("Include System Files", 18, 210, false);
+            _includeSystemFilesCheck = CreateCheckBox("Include System Files", 18, 234, false);
             page.Controls.Add(_includeSystemFilesCheck);
-            _includeArchiveOnlyCheck = CreateCheckBox("Include Archive Files Only", 18, 234, false);
+            _includeArchiveOnlyCheck = CreateCheckBox("Include Archive Files Only", 18, 258, false);
             page.Controls.Add(_includeArchiveOnlyCheck);
-            _clearArchiveAttributeCheck = CreateCheckBox("Clear Archive Attribute", 18, 276, false);
+            _clearArchiveAttributeCheck = CreateCheckBox("Clear Archive Attribute", 18, 288, false);
             page.Controls.Add(_clearArchiveAttributeCheck);
 
             LinkLabel reset = new LinkLabel();
             reset.Text = "Reset Settings";
-            reset.Location = new Point(146, 304);
+            reset.Location = new Point(146, 314);
             reset.AutoSize = true;
             reset.LinkClicked += delegate { ResetBuildOptions(); };
             page.Controls.Add(reset);
@@ -981,6 +1016,21 @@ namespace LuxBurn
             combo.Location = new Point(x, y);
             combo.Size = new Size(width, 22);
             return combo;
+        }
+
+        private static void SelectComboText(ComboBox combo, string value)
+        {
+            if (combo == null)
+                return;
+
+            for (int i = 0; i < combo.Items.Count; i++)
+            {
+                if (string.Equals(Convert.ToString(combo.Items[i]), value, StringComparison.OrdinalIgnoreCase))
+                {
+                    combo.SelectedIndex = i;
+                    return;
+                }
+            }
         }
 
         private CheckBox CreateCheckBox(string text, int x, int y, bool isChecked)
@@ -1205,7 +1255,7 @@ namespace LuxBurn
             return true;
         }
 
-        private string CreateBuildStagingFolder()
+        private string CreateBuildStagingFolder(bool placeFolderContentsAtRoot)
         {
             string staging = Path.Combine(Path.GetTempPath(), "LuxBurnBuild_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(staging);
@@ -1220,14 +1270,38 @@ namespace LuxBurn
                 }
                 else if (Directory.Exists(source))
                 {
-                    string target = _preservePathsCheck.Checked
-                        ? Path.Combine(staging, MakeSafePathRoot(source))
-                        : Path.Combine(staging, Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
-                    CopyDirectoryForImage(source, target);
+                    if (!_preservePathsCheck.Checked && placeFolderContentsAtRoot)
+                    {
+                        CopyDirectoryContentsForImage(source, staging);
+                    }
+                    else
+                    {
+                        string target = _preservePathsCheck.Checked
+                            ? Path.Combine(staging, MakeSafePathRoot(source))
+                            : Path.Combine(staging, Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+                        CopyDirectoryForImage(source, target);
+                    }
                 }
             }
 
             return staging;
+        }
+
+        private void CopyDirectoryContentsForImage(string source, string target)
+        {
+            Directory.CreateDirectory(target);
+
+            foreach (string file in Directory.GetFiles(source))
+            {
+                if (ShouldIncludeFile(file))
+                    CopyFileForImage(file, Path.Combine(target, Path.GetFileName(file)));
+            }
+
+            if (!_recurseSubdirectoriesCheck.Checked)
+                return;
+
+            foreach (string directory in Directory.GetDirectories(source))
+                CopyDirectoryForImage(directory, Path.Combine(target, Path.GetFileName(directory)));
         }
 
         private void CopyDirectoryForImage(string source, string target)
@@ -1250,7 +1324,10 @@ namespace LuxBurn
         private void CopyFileForImage(string source, string target)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(target));
-            File.Copy(source, target, true);
+            if (File.Exists(target))
+                throw new IOException("Two source items would create the same disc file: " + target);
+
+            File.Copy(source, target, false);
             if (_clearArchiveAttributeCheck != null && _clearArchiveAttributeCheck.Checked)
                 File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.Archive);
         }
@@ -1260,12 +1337,6 @@ namespace LuxBurn
             string root = Path.GetPathRoot(path);
             string remainder = path.Substring(root.Length).Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             return root.Replace(Path.DirectorySeparatorChar, '_').Replace(':', '_') + remainder.Replace(Path.DirectorySeparatorChar, '_').Replace(Path.AltDirectorySeparatorChar, '_');
-        }
-
-        private void BuildThenOpenBurn()
-        {
-            BuildImage();
-            _tabs.SelectedIndex = 2;
         }
 
         private void SynchronizeVolumeLabels(string value)
@@ -1300,6 +1371,8 @@ namespace LuxBurn
             _buildDataTypeCombo.SelectedIndex = 0;
             _buildFileSystemCombo.SelectedIndex = 1;
             _buildUdfRevisionCombo.SelectedIndex = 0;
+            if (_folderPlacementCombo != null)
+                _folderPlacementCombo.SelectedIndex = 0;
             _preservePathsCheck.Checked = false;
             _recurseSubdirectoriesCheck.Checked = true;
             _includeHiddenFilesCheck.Checked = false;
@@ -1313,6 +1386,8 @@ namespace LuxBurn
             ClearBuildItems();
             _buildOutputText.Text = string.Empty;
             _volumeNameText.Text = "LUXBURN_DISC";
+            if (_folderPlacementCombo != null)
+                _folderPlacementCombo.SelectedIndex = 0;
             _projectPath = null;
             SetStatus("New project ready.");
         }
@@ -1335,6 +1410,7 @@ namespace LuxBurn
                     writer.WriteLine("Volume=" + _volumeNameText.Text);
                     writer.WriteLine("FileSystem=" + Convert.ToString(_buildFileSystemCombo.SelectedItem));
                     writer.WriteLine("UdfRevision=" + Convert.ToString(_buildUdfRevisionCombo.SelectedItem));
+                    writer.WriteLine("FolderPlacement=" + Convert.ToString(_folderPlacementCombo.SelectedItem));
                     writer.WriteLine("Recurse=" + _recurseSubdirectoriesCheck.Checked);
                     for (int i = 0; i < _buildItemList.Items.Count; i++)
                         writer.WriteLine("Item=" + Convert.ToString(_buildItemList.Items[i].Tag));
@@ -1379,6 +1455,8 @@ namespace LuxBurn
                     _volumeNameText.Text = line.Substring(7);
                 else if (line.StartsWith("Recurse=", StringComparison.OrdinalIgnoreCase))
                     _recurseSubdirectoriesCheck.Checked = string.Equals(line.Substring(8), "True", StringComparison.OrdinalIgnoreCase);
+                else if (line.StartsWith("FolderPlacement=", StringComparison.OrdinalIgnoreCase))
+                    SelectComboText(_folderPlacementCombo, line.Substring(16));
                 else if (line.StartsWith("Item=", StringComparison.OrdinalIgnoreCase))
                     AddBuildItems(new string[] { line.Substring(5) });
             }
@@ -1728,6 +1806,8 @@ namespace LuxBurn
         {
             if (_driveCombo != null && _driveCombo.SelectedItem is DiscRecorderInfo)
                 return (DiscRecorderInfo)_driveCombo.SelectedItem;
+            if (_buildBurnDriveCombo != null && _buildBurnDriveCombo.SelectedItem is DiscRecorderInfo)
+                return (DiscRecorderInfo)_buildBurnDriveCombo.SelectedItem;
             if (_burnDriveCombo != null && _burnDriveCombo.SelectedItem is DiscRecorderInfo)
                 return (DiscRecorderInfo)_burnDriveCombo.SelectedItem;
             if (_copyDriveCombo != null && _copyDriveCombo.SelectedItem is DiscRecorderInfo)
@@ -1819,9 +1899,6 @@ namespace LuxBurn
 
             if (_buildItemList.Items.Count == 0)
                 BrowseBuildSourceFolder();
-
-            if (_buildOutputText.Text.Trim().Length == 0)
-                BrowseSaveIso(_buildOutputText);
         }
 
         private void StartBurnWizard(string sourceWizard)
@@ -2291,6 +2368,7 @@ namespace LuxBurn
             {
                 IList<DiscRecorderInfo> recorders = _burningService.GetRecorders();
                 _driveCombo.Items.Clear();
+                _buildBurnDriveCombo.Items.Clear();
                 _burnDriveCombo.Items.Clear();
                 _copyDriveCombo.Items.Clear();
                 _eraseDriveCombo.Items.Clear();
@@ -2299,6 +2377,7 @@ namespace LuxBurn
                 foreach (DiscRecorderInfo recorder in recorders)
                 {
                     _driveCombo.Items.Add(recorder);
+                    _buildBurnDriveCombo.Items.Add(recorder);
                     _burnDriveCombo.Items.Add(recorder);
                     _copyDriveCombo.Items.Add(recorder);
                     _eraseDriveCombo.Items.Add(recorder);
@@ -2312,6 +2391,8 @@ namespace LuxBurn
 
                 if (_driveCombo.Items.Count > 0)
                     _driveCombo.SelectedIndex = 0;
+                if (_buildBurnDriveCombo.Items.Count > 0)
+                    _buildBurnDriveCombo.SelectedIndex = 0;
                 if (_burnDriveCombo.Items.Count > 0)
                     _burnDriveCombo.SelectedIndex = 0;
                 if (_copyDriveCombo.Items.Count > 0)
@@ -2333,6 +2414,7 @@ namespace LuxBurn
         {
             string output = _buildOutputText.Text.Trim();
             string volume = _volumeNameText.Text.Trim();
+            bool placeFolderContentsAtRoot = _folderPlacementCombo == null || _folderPlacementCombo.SelectedIndex == 0;
 
             if (_buildItemList.Items.Count == 0 || output.Length == 0)
             {
@@ -2342,7 +2424,7 @@ namespace LuxBurn
 
             RunWork("Building image...", delegate
             {
-                string stagingPath = CreateBuildStagingFolder();
+                string stagingPath = CreateBuildStagingFolder(placeFolderContentsAtRoot);
                 try
                 {
                     Log("Building image from " + _buildItemList.Items.Count + " source item(s).");
@@ -2360,6 +2442,122 @@ namespace LuxBurn
                 _verifyFileText.Text = output;
                 CalculateBuildImageInformation();
             });
+        }
+
+        private void BuildAndBurnImage()
+        {
+            string output = _buildOutputText.Text.Trim();
+            string volume = _volumeNameText.Text.Trim();
+            bool temporaryOutput = false;
+            DiscRecorderInfo recorder = _buildBurnDriveCombo == null ? null : _buildBurnDriveCombo.SelectedItem as DiscRecorderInfo;
+            string recorderId = recorder == null ? string.Empty : recorder.Id;
+            string burnMethod = "Auto";
+            bool eject = _ejectAfterBurnCheck == null || _ejectAfterBurnCheck.Checked;
+            bool verifyAfter = _verifyAfterBurnCheck != null && _verifyAfterBurnCheck.Checked;
+            bool placeFolderContentsAtRoot = _folderPlacementCombo == null || _folderPlacementCombo.SelectedIndex == 0;
+            string folderPlacement = _folderPlacementCombo == null ? "Put folder contents at disc root" : Convert.ToString(_folderPlacementCombo.SelectedItem);
+
+            if (_buildItemList.Items.Count == 0)
+            {
+                MessageBox.Show(this, "Add files or folders first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (recorder == null)
+            {
+                MessageBox.Show(this, "Choose a target drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (output.Length == 0)
+            {
+                string folder = Path.Combine(Path.GetTempPath(), "LuxBurn");
+                Directory.CreateDirectory(folder);
+                output = Path.Combine(folder, "LuxBurnBuild_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".iso");
+                temporaryOutput = true;
+            }
+
+            _burnImageText.Text = output;
+            _verifyFileText.Text = output;
+            if (_burnDriveCombo != null && recorder != null)
+                _burnDriveCombo.SelectedItem = recorder;
+
+            ResetBurnProgress();
+            _burnCancellation = new CancellationTokenSource();
+            _burnInProgress = true;
+            SetBusy(true, "Building image...");
+
+            BackgroundWorker worker = new BackgroundWorker();
+            worker.DoWork += delegate(object sender, DoWorkEventArgs e)
+            {
+                string stagingPath = CreateBuildStagingFolder(placeFolderContentsAtRoot);
+                try
+                {
+                    Log("Building image from " + _buildItemList.Items.Count + " source item(s).");
+                    Log("Folder placement: " + folderPlacement + ".");
+                    _burningService.BuildIso(stagingPath, output, volume);
+                    _burnCancellation.Token.ThrowIfCancellationRequested();
+
+                    bool usingExternalBurner = _burningService.WillUseWindowsDiscImageBurner(burnMethod);
+                    Log("Burning built image: " + output);
+                    Log("Target drive: " + recorder.DisplayName);
+                    Log("Burn backend: " + (usingExternalBurner ? "Windows Disc Image Burner" : "cdrecord"));
+                    _burningService.BurnImage(output, recorderId, eject, burnMethod, Log, UpdateBurnProgress, _burnCancellation.Token);
+
+                    if (!usingExternalBurner && verifyAfter)
+                    {
+                        string hash = ChecksumService.ComputeFileHash(output, "SHA256");
+                        Log("Post-burn SHA-256: " + hash);
+                    }
+
+                    e.Result = usingExternalBurner;
+                }
+                finally
+                {
+                    TryDeleteDirectory(stagingPath);
+                    if (temporaryOutput && File.Exists(output))
+                    {
+                        try { File.Delete(output); }
+                        catch { }
+                    }
+                }
+            };
+            worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs e)
+            {
+                _burnInProgress = false;
+                _burnCancellation = null;
+                SetBusy(false, "Ready");
+                CalculateBuildImageInformation();
+
+                if (temporaryOutput)
+                {
+                    _burnImageText.Text = string.Empty;
+                    _verifyFileText.Text = string.Empty;
+                }
+
+                if (e.Error != null)
+                {
+                    if (e.Error is OperationCanceledException)
+                    {
+                        Log("Build and burn cancelled.");
+                        SetStatus("Build and burn cancelled.");
+                        return;
+                    }
+
+                    Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
+                    if (e.Error.InnerException != null)
+                        Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
+
+                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                bool usingExternalBurner = Convert.ToBoolean(e.Result);
+                Log(usingExternalBurner ? "Burn window opened for built image." : "Build and burn completed.");
+                if (!usingExternalBurner)
+                    PlaySuccessSound();
+            };
+            worker.RunWorkerAsync();
         }
 
         private void BurnImage()
@@ -2622,6 +2820,8 @@ namespace LuxBurn
         {
             _refreshButton.Enabled = !busy;
             _buildButton.Enabled = !busy;
+            if (_buildAndBurnButton != null)
+                _buildAndBurnButton.Enabled = !busy;
             _burnButton.Enabled = !busy;
             _copyButton.Enabled = !busy;
             _eraseButton.Enabled = !busy;

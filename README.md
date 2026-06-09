@@ -5,13 +5,13 @@
 # LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.2-blue)]()
+[![Version](https://img.shields.io/badge/version-1.5.3-blue)]()
 
 </div>
 
 ## About
 
-LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.2 is designed to run from Windows XP through Windows 11.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.3 is designed to run from Windows XP through Windows 11.
 
 The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
@@ -27,7 +27,8 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 |:--|:--|
 | Burn images | Writes ISO images to optical media using cdrecord. |
 | Copy discs | Copies standard data discs to ISO-style images using readcd. |
-| Build workspace | Adds drag-and-drop file/folder insertion, project save/load, image information, options, labels, and advanced tabs. |
+| Build workspace | Adds drag-and-drop file/folder insertion, project save/load, root-or-folder placement, image information, options, labels, and advanced tabs. |
+| Build and burn | Builds selected files/folders into an ISO and burns it in one operation, with temporary image cleanup when no ISO save path is chosen. |
 | Drive tools | Adds ISO and Drive menus for device search, tray commands, erase/fixate actions, capabilities, family tree, and settings. |
 | Media checks | Detects blank, non-empty, finalized, non-erasable, and oversized discs before writing. |
 | Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
@@ -45,8 +46,8 @@ Download the newest build without typing anything:
 
 | Package | Link |
 |:--|:--|
-| Installer | [Download LuxBurn-v1.5.2-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.2-setup.exe) |
-| Portable | [Download LuxBurn-v1.5.2-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.2-portable.zip) |
+| Installer | [Download LuxBurn-v1.5.3-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.3-setup.exe) |
+| Portable | [Download LuxBurn-v1.5.3-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.3-portable.zip) |
 
 The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
 
@@ -85,8 +86,8 @@ package.cmd
 This creates:
 
 ```cmd
-dist\LuxBurn-v1.5.2-portable.zip
-dist\LuxBurn-v1.5.2-setup.exe
+dist\LuxBurn-v1.5.3-portable.zip
+dist\LuxBurn-v1.5.3-setup.exe
 ```
 
 The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
