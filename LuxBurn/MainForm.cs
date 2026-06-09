@@ -685,12 +685,12 @@ namespace LuxBurn
 
             EzModeWheel wheel = new EzModeWheel();
             wheel.Location = new Point(72, 108);
-            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(24, 7), new Rectangle(98, 121, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
-            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(180, 7), new Rectangle(210, 121, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
-            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(224, 94), new Rectangle(296, 184, 92, 42), delegate { StartCopyWizard(); });
-            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(184, 195), new Rectangle(196, 271, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
-            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(20, 195), new Rectangle(112, 271, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
-            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(0, 94), new Rectangle(12, 184, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), new Rectangle(98, 121, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
+            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), new Rectangle(210, 121, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
+            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(245, 94), new Rectangle(296, 184, 92, 42), delegate { StartCopyWizard(); });
+            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(197, 219), new Rectangle(196, 271, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
+            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(30, 219), new Rectangle(112, 271, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
+            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), new Rectangle(12, 184, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
             surface.Controls.Add(wheel);
 
             return page;
