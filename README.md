@@ -2,7 +2,7 @@
 
 <img src="OpenBurningSuite/icon.png" width="128px">
 
-# LuxBurn
+# LuxBurn [Indev.]
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
