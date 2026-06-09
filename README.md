@@ -63,7 +63,7 @@ LuxBurn-v1.4.zip
 
 ## Notes
 
-- Run LuxBurn as Administrator for optical drive access.
+- LuxBurn normally launches without Administrator permissions. If a drive blocks access, try running it as Administrator as a troubleshooting step.
 - CD-R and other write-once media cannot be erased or safely resumed after a failed write.
 - If cdrecord is unavailable, LuxBurn can open Windows Disc Image Burner on Windows versions that include it.
 - The Windows XP compatibility build is documented in [WINDOWS_XP.md](WINDOWS_XP.md).
