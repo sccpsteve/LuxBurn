@@ -4,6 +4,7 @@ obj/
 build/package/
 build/tools/
 dist/
+saved-builds/
 LuxBurn-v*.zip
 LuxBurn-v*-setup.exe
 LuxBurn-v*-portable.zip
