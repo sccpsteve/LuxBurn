@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Text;
 using System.IO;
 using System.Net;
 using System.Net.Cache;
@@ -15,6 +16,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 using LuxBurn.Services;
 
 namespace LuxBurn
@@ -23,8 +25,11 @@ namespace LuxBurn
     {
         private const int OperationRailWidth = 252;
         private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
+        private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
+        private readonly PrivateFontCollection _privateFonts;
+        private readonly FontFamily _uiFontFamily;
 
         private ComboBox _driveCombo;
         private ComboBox _burnDriveCombo;
@@ -98,7 +103,9 @@ namespace LuxBurn
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1180, 700);
             Size = new Size(1280, 760);
-            Font = new Font("Tahoma", 8.25f);
+            _privateFonts = LoadPrivateFonts();
+            _uiFontFamily = SelectPrivateFontFamily(_privateFonts);
+            Font = CreateUiFont(8.25f, FontStyle.Regular);
             BackColor = Color.FromArgb(240, 240, 236);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
@@ -123,6 +130,60 @@ namespace LuxBurn
         {
             base.OnResizeEnd(e);
             EndVisualTransition();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+
+            if (disposing && _privateFonts != null)
+                _privateFonts.Dispose();
+        }
+
+        private PrivateFontCollection LoadPrivateFonts()
+        {
+            PrivateFontCollection fonts = new PrivateFontCollection();
+            try
+            {
+                string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Fonts");
+                string regular = Path.Combine(folder, "SegoeTVRegular.TTF");
+                if (!File.Exists(regular))
+                    return fonts;
+
+                foreach (string file in Directory.GetFiles(folder, "*.ttf"))
+                    fonts.AddFontFile(file);
+            }
+            catch (Exception ex)
+            {
+                Log("Custom font load failed: " + ex.Message);
+            }
+
+            return fonts;
+        }
+
+        private static FontFamily SelectPrivateFontFamily(PrivateFontCollection fonts)
+        {
+            if (fonts == null || fonts.Families == null || fonts.Families.Length == 0)
+                return null;
+
+            return fonts.Families[0];
+        }
+
+        private Font CreateUiFont(float size, FontStyle style)
+        {
+            try
+            {
+                if (_uiFontFamily != null)
+                {
+                    FontStyle actualStyle = _uiFontFamily.IsStyleAvailable(style) ? style : FontStyle.Regular;
+                    return new Font(_uiFontFamily, size, actualStyle, GraphicsUnit.Point);
+                }
+            }
+            catch
+            {
+            }
+
+            return new Font("Tahoma", size, style, GraphicsUnit.Point);
         }
 
         private void BuildInterface()
@@ -274,7 +335,7 @@ namespace LuxBurn
 
             Label section = new Label();
             section.Text = "Operations";
-            section.Font = new Font("Tahoma", 8.25f, FontStyle.Bold);
+            section.Font = CreateUiFont(8.25f, FontStyle.Bold);
             section.ForeColor = Color.White;
             section.BackColor = Color.Transparent;
             section.AutoSize = true;
@@ -530,9 +591,9 @@ namespace LuxBurn
             group.Controls.Add(_ejectAfterBurnCheck);
 
             _verifyAfterBurnCheck = new CheckBox();
-            _verifyAfterBurnCheck.Text = "Calculate SHA-256 after burn";
+            _verifyAfterBurnCheck.Text = "Calculate source image SHA-256 after burn";
             _verifyAfterBurnCheck.Location = new Point(130, 132);
-            _verifyAfterBurnCheck.Size = new Size(220, 22);
+            _verifyAfterBurnCheck.Size = new Size(320, 22);
             group.Controls.Add(_verifyAfterBurnCheck);
 
             Label note = new Label();
@@ -703,7 +764,7 @@ namespace LuxBurn
 
             Label heading = new Label();
             heading.Text = "EZ Mode Picker";
-            heading.Font = new Font("Tahoma", 18f, FontStyle.Bold);
+            heading.Font = CreateUiFont(18f, FontStyle.Bold);
             heading.ForeColor = Color.White;
             heading.BackColor = Color.Transparent;
             heading.Location = new Point(34, 24);
@@ -718,7 +779,7 @@ namespace LuxBurn
             intro.BackColor = Color.Transparent;
             surface.Controls.Add(intro);
 
-            EzModeWheel wheel = new EzModeWheel();
+            EzModeWheel wheel = new EzModeWheel(CreateUiFont(8.25f, FontStyle.Regular));
             wheel.Location = new Point(72, 108);
             wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), LoadButtonAsset("145_add.png"), new Point(96, 22), 120, new Rectangle(92, 85, 92, 42), 100, delegate { StartBuildWizard("DATA_DISC"); });
             wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), LoadButtonAsset("139-Edit.png"), new Point(220, 22), 124, new Rectangle(216, 85, 92, 42), 100, delegate { StartBurnWizard("EZ Mode"); });
@@ -784,13 +845,24 @@ namespace LuxBurn
             return bar;
         }
 
+        private Label CreateNoteLabel(string text, int x, int y, int width, int height)
+        {
+            Label label = new Label();
+            label.Text = text;
+            label.Location = new Point(x, y);
+            label.Size = new Size(width, height);
+            label.ForeColor = Color.FromArgb(72, 72, 72);
+            return label;
+        }
+
         private Control CreateSideButton(int top, string caption, string iconName)
         {
             OperationButton button = new OperationButton(
                 caption,
                 LoadUiAsset("but_145x65.png"),
                 LoadUiAsset("but_145x65.png"),
-                LoadButtonAsset(iconName));
+                LoadButtonAsset(iconName),
+                CreateUiFont(8.25f, FontStyle.Regular));
             button.Location = new Point(34, top);
             button.BackColor = Color.Transparent;
             return button;
@@ -862,6 +934,7 @@ namespace LuxBurn
             speed.SelectedIndex = 0;
             speed.Location = new Point(96, 236);
             speed.Size = new Size(92, 22);
+            speed.Enabled = false;
             page.Controls.Add(speed);
 
             AddLabel(page, "Copies:", 10, 268);
@@ -871,7 +944,11 @@ namespace LuxBurn
             copies.SelectedIndex = 0;
             copies.Location = new Point(96, 264);
             copies.Size = new Size(92, 22);
+            copies.Enabled = false;
             page.Controls.Add(copies);
+
+            Label note = CreateNoteLabel("Speed and copy count are not applied by the current ISO builder.", 200, 238, 180, 42);
+            page.Controls.Add(note);
             return page;
         }
 
@@ -880,16 +957,22 @@ namespace LuxBurn
             TabPage page = new TabPage("Options");
             AddLabel(page, "Data Type:", 18, 28);
             _buildDataTypeCombo = CreateDropDown(146, 24, 150, new object[] { "MODE1/2048", "MODE2/2336" });
+            _buildDataTypeCombo.Enabled = false;
             page.Controls.Add(_buildDataTypeCombo);
 
             AddLabel(page, "File System:", 18, 56);
             _buildFileSystemCombo = CreateDropDown(146, 52, 150, new object[] { "ISO9660 + UDF", "ISO9660 + Joliet + UDF", "ISO9660", "UDF" });
             _buildFileSystemCombo.SelectedIndex = 1;
+            _buildFileSystemCombo.Enabled = false;
             page.Controls.Add(_buildFileSystemCombo);
 
             AddLabel(page, "UDF Revision:", 18, 84);
             _buildUdfRevisionCombo = CreateDropDown(146, 80, 90, new object[] { "1.02", "1.50", "2.00", "2.01" });
+            _buildUdfRevisionCombo.Enabled = false;
             page.Controls.Add(_buildUdfRevisionCombo);
+
+            Label imapiNote = CreateNoteLabel("IMAPI2FS currently builds ISO9660/Joliet/UDF automatically.", 248, 80, 150, 42);
+            page.Controls.Add(imapiNote);
 
             AddLabel(page, "Folder Placement:", 18, 114);
             _folderPlacementCombo = CreateDropDown(146, 110, 220, new object[] { "Put folder contents at disc root", "Keep selected folders as folders" });
@@ -922,15 +1005,19 @@ namespace LuxBurn
             TabPage page = new TabPage("Labels");
             AddLabel(page, "ISO9660:", 18, 28);
             _iso9660LabelText = CreateTextBox(96, 24, 185);
+            _iso9660LabelText.ReadOnly = true;
             page.Controls.Add(_iso9660LabelText);
             AddLabel(page, "Joliet:", 18, 56);
             _jolietLabelText = CreateTextBox(96, 52, 185);
+            _jolietLabelText.ReadOnly = true;
             page.Controls.Add(_jolietLabelText);
             AddLabel(page, "UDF:", 18, 84);
             _udfLabelText = CreateTextBox(96, 80, 185);
+            _udfLabelText.ReadOnly = true;
             page.Controls.Add(_udfLabelText);
 
             _syncLabelsCheck = CreateCheckBox("Synchronised Editing", 18, 118, true);
+            _syncLabelsCheck.Enabled = false;
             page.Controls.Add(_syncLabelsCheck);
             _iso9660LabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_iso9660LabelText.Text); };
             _jolietLabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_jolietLabelText.Text); };
@@ -939,20 +1026,26 @@ namespace LuxBurn
 
             AddLabel(page, "System:", 18, 164);
             _systemIdentifierText = CreateTextBox(126, 160, 174);
+            _systemIdentifierText.ReadOnly = true;
             page.Controls.Add(_systemIdentifierText);
             AddLabel(page, "Volume Set:", 18, 192);
             _volumeSetText = CreateTextBox(126, 188, 174);
+            _volumeSetText.ReadOnly = true;
             page.Controls.Add(_volumeSetText);
             AddLabel(page, "Publisher:", 18, 220);
             _publisherText = CreateTextBox(126, 216, 174);
+            _publisherText.ReadOnly = true;
             page.Controls.Add(_publisherText);
             AddLabel(page, "Data Preparer:", 18, 248);
             _dataPreparerText = CreateTextBox(126, 244, 174);
+            _dataPreparerText.ReadOnly = true;
             page.Controls.Add(_dataPreparerText);
             AddLabel(page, "Application:", 18, 276);
             _applicationIdentifierText = CreateTextBox(126, 272, 174);
             _applicationIdentifierText.Text = "LuxBurn";
+            _applicationIdentifierText.ReadOnly = true;
             page.Controls.Add(_applicationIdentifierText);
+            page.Controls.Add(CreateNoteLabel("The current ISO builder uses the main Volume label only.", 18, 314, 280, 22));
             return page;
         }
 
@@ -962,7 +1055,9 @@ namespace LuxBurn
             TabControl advanced = new TabControl();
             advanced.Location = new Point(8, 8);
             advanced.Size = new Size(390, 294);
+            advanced.Enabled = false;
             page.Controls.Add(advanced);
+            page.Controls.Add(CreateNoteLabel("Advanced date, restriction, and boot options are disabled until LuxBurn routes builds through a backend that applies them.", 12, 306, 370, 32));
 
             TabPage dates = new TabPage("Dates");
             dates.Controls.Add(CreateCheckBox("Creation:", 18, 24, false));
@@ -1065,7 +1160,7 @@ namespace LuxBurn
 
             Label heading = new Label();
             heading.Text = title;
-            heading.Font = new Font("Tahoma", 8.25f, FontStyle.Bold);
+            heading.Font = CreateUiFont(8.25f, FontStyle.Bold);
             heading.Location = new Point(12, 10);
             heading.Size = new Size(392, 18);
             card.Controls.Add(heading);
@@ -1139,6 +1234,12 @@ namespace LuxBurn
                 string path = string.IsNullOrEmpty(rawPath) ? string.Empty : rawPath.Trim();
                 if (path.Length == 0 || (!File.Exists(path) && !Directory.Exists(path)))
                     continue;
+
+                if (Directory.Exists(path) && IsReparsePoint(path))
+                {
+                    Log("Skipped linked folder: " + path);
+                    continue;
+                }
 
                 if (FindBuildItem(path) != null)
                     continue;
@@ -1224,6 +1325,9 @@ namespace LuxBurn
 
             try
             {
+                if (IsReparsePoint(path))
+                    return;
+
                 foreach (string file in Directory.GetFiles(path))
                 {
                     if (!ShouldIncludeFile(file))
@@ -1234,6 +1338,12 @@ namespace LuxBurn
 
                 foreach (string directory in Directory.GetDirectories(path))
                 {
+                    if (IsReparsePoint(directory))
+                    {
+                        Log("Skipped linked folder: " + directory);
+                        continue;
+                    }
+
                     folders++;
                     AddDirectoryStatistics(directory, ref files, ref folders, ref size);
                 }
@@ -1247,6 +1357,8 @@ namespace LuxBurn
         private bool ShouldIncludeFile(string path)
         {
             FileAttributes attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                return false;
             if (!_includeHiddenFilesCheck.Checked && (attributes & FileAttributes.Hidden) != 0)
                 return false;
             if (!_includeSystemFilesCheck.Checked && (attributes & FileAttributes.System) != 0)
@@ -1254,6 +1366,18 @@ namespace LuxBurn
             if (_includeArchiveOnlyCheck.Checked && (attributes & FileAttributes.Archive) == 0)
                 return false;
             return true;
+        }
+
+        private static bool IsReparsePoint(string path)
+        {
+            try
+            {
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         private string CreateBuildStagingFolder(bool placeFolderContentsAtRoot)
@@ -1302,7 +1426,12 @@ namespace LuxBurn
                 return;
 
             foreach (string directory in Directory.GetDirectories(source))
+            {
+                if (IsReparsePoint(directory))
+                    continue;
+
                 CopyDirectoryForImage(directory, Path.Combine(target, Path.GetFileName(directory)));
+            }
         }
 
         private void CopyDirectoryForImage(string source, string target)
@@ -1319,7 +1448,12 @@ namespace LuxBurn
                 return;
 
             foreach (string directory in Directory.GetDirectories(source))
+            {
+                if (IsReparsePoint(directory))
+                    continue;
+
                 CopyDirectoryForImage(directory, Path.Combine(target, Path.GetFileName(directory)));
+            }
         }
 
         private void CopyFileForImage(string source, string target)
@@ -1638,7 +1772,7 @@ namespace LuxBurn
             dialog.Font = Font;
 
             dialog.Controls.Add(CreateCheckBox("Eject media after burn", 18, 18, _ejectAfterBurnCheck.Checked));
-            dialog.Controls.Add(CreateCheckBox("Calculate SHA-256 after burn", 18, 46, _verifyAfterBurnCheck.Checked));
+            dialog.Controls.Add(CreateCheckBox("Calculate source image SHA-256 after burn", 18, 46, _verifyAfterBurnCheck.Checked));
             dialog.Controls.Add(CreateCheckBox("Calculate SHA-256 after copy", 18, 74, _verifyAfterCopyCheck.Checked));
             Button ok = CreateButton("OK", 242, 176, 90, 28);
             ok.DialogResult = DialogResult.OK;
@@ -1981,44 +2115,40 @@ namespace LuxBurn
             public string InstallerUrl;
             public string PortableUrl;
             public string ReleasePageUrl;
+            public string InstallerSha256;
+            public string PortableSha256;
+            public string GeneratedAtUtc;
 
             public static UpdateInfo FromJson(string json)
             {
+                if (string.IsNullOrEmpty(json))
+                    return new UpdateInfo();
+
+                JavaScriptSerializer serializer = new JavaScriptSerializer();
+                Dictionary<string, object> values = serializer.DeserializeObject(json) as Dictionary<string, object>;
                 UpdateInfo info = new UpdateInfo();
-                info.LatestVersion = ReadJsonString(json, "latestVersion");
-                info.InstallerUrl = ReadJsonString(json, "installerUrl");
-                info.PortableUrl = ReadJsonString(json, "portableUrl");
-                info.ReleasePageUrl = ReadJsonString(json, "releasePageUrl");
+                info.LatestVersion = ReadJsonString(values, "latestVersion");
+                info.InstallerUrl = ReadJsonString(values, "installerUrl");
+                info.PortableUrl = ReadJsonString(values, "portableUrl");
+                info.ReleasePageUrl = ReadJsonString(values, "releasePageUrl");
+                info.InstallerSha256 = ReadJsonString(values, "installerSha256");
+                info.PortableSha256 = ReadJsonString(values, "portableSha256");
+                info.GeneratedAtUtc = ReadJsonString(values, "generatedAtUtc");
                 return info;
             }
 
-            private static string ReadJsonString(string json, string name)
+            private static string ReadJsonString(Dictionary<string, object> values, string name)
             {
-                if (string.IsNullOrEmpty(json))
+                if (values == null || !values.ContainsKey(name) || values[name] == null)
                     return string.Empty;
 
-                Match match = Regex.Match(json, "\"" + Regex.Escape(name) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-                return match.Success ? UnescapeJson(match.Groups[1].Value) : string.Empty;
-            }
-
-            private static string UnescapeJson(string value)
-            {
-                if (string.IsNullOrEmpty(value))
-                    return string.Empty;
-
-                return value
-                    .Replace("\\/", "/")
-                    .Replace("\\\"", "\"")
-                    .Replace("\\\\", "\\")
-                    .Replace("\\n", "\n")
-                    .Replace("\\r", "\r")
-                    .Replace("\\t", "\t");
+                return Convert.ToString(values[name]);
             }
         }
 
         private sealed class UpdateDialog : Form
         {
-            public UpdateDialog(string runningVersion, string latestVersion)
+            public UpdateDialog(string runningVersion, string latestVersion, Font uiFont)
             {
                 Text = "LuxBurn";
                 StartPosition = FormStartPosition.CenterParent;
@@ -2027,11 +2157,11 @@ namespace LuxBurn
                 MinimizeBox = false;
                 ShowInTaskbar = false;
                 ClientSize = new Size(390, 164);
-                Font = new Font("Tahoma", 8.25f);
+                Font = uiFont ?? new Font("Tahoma", 8.25f);
 
                 Label heading = new Label();
                 heading.Text = "LuxBurn is out of date!";
-                heading.Font = new Font("Tahoma", 10f, FontStyle.Bold);
+                heading.Font = new Font(Font.FontFamily, 10f, FontStyle.Bold);
                 heading.Location = new Point(14, 14);
                 heading.Size = new Size(360, 24);
                 Controls.Add(heading);
@@ -2043,7 +2173,7 @@ namespace LuxBurn
                 Controls.Add(body);
 
                 Button update = new Button();
-                update.Text = "Update";
+                update.Text = "Download";
                 update.DialogResult = DialogResult.Yes;
                 update.Location = new Point(72, 116);
                 update.Size = new Size(78, 27);
@@ -2074,9 +2204,9 @@ namespace LuxBurn
             private readonly Image _hoverImage;
             private bool _isHovering;
 
-            public OperationButton(string caption, Image normalBackground, Image hoverBackground, Image icon)
+            public OperationButton(string caption, Image normalBackground, Image hoverBackground, Image icon, Font font)
             {
-                Font = new Font("Tahoma", 8.25f, FontStyle.Regular);
+                Font = font ?? new Font("Tahoma", 8.25f, FontStyle.Regular);
                 _normalImage = ComposeButton(normalBackground, icon, caption, Font);
                 _hoverImage = ComposeButton(hoverBackground ?? normalBackground, icon, caption, Font);
 
@@ -2171,9 +2301,10 @@ namespace LuxBurn
             private readonly List<Slice> _slices = new List<Slice>();
             private int _hoverIndex = -1;
 
-            public EzModeWheel()
+            public EzModeWheel(Font font)
             {
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                Font = font ?? new Font("Tahoma", 8.25f);
                 Size = new Size(400, 380);
                 Cursor = Cursors.Hand;
                 TabStop = false;
@@ -2237,8 +2368,8 @@ namespace LuxBurn
                         DrawScaledImage(e.Graphics, slice.IconImage, slice.IconLocation, slice.IconScale);
 
                     float textScale = Math.Max(50, Math.Min(180, slice.TextScale)) / 100f;
-                    using (Font titleFont = new Font("Tahoma", 10f * textScale, FontStyle.Bold))
-                    using (Font subtitleFont = new Font("Tahoma", 8.25f * textScale))
+                    using (Font titleFont = new Font(Font.FontFamily, 10f * textScale, FontStyle.Bold))
+                    using (Font subtitleFont = new Font(Font.FontFamily, 8.25f * textScale))
                     {
                         Color titleColor = i == _hoverIndex ? Color.White : Color.FromArgb(232, 244, 248);
                         Color subtitleColor = i == _hoverIndex ? Color.White : Color.FromArgb(205, 226, 235);
@@ -2455,6 +2586,7 @@ namespace LuxBurn
             string burnMethod = "Auto";
             bool eject = _ejectAfterBurnCheck == null || _ejectAfterBurnCheck.Checked;
             bool verifyAfter = _verifyAfterBurnCheck != null && _verifyAfterBurnCheck.Checked;
+            bool handedOffToWindowsBurner = false;
             bool placeFolderContentsAtRoot = _folderPlacementCombo == null || _folderPlacementCombo.SelectedIndex == 0;
             string folderPlacement = _folderPlacementCombo == null ? "Put folder contents at disc root" : Convert.ToString(_folderPlacementCombo.SelectedItem);
 
@@ -2500,6 +2632,7 @@ namespace LuxBurn
                     _burnCancellation.Token.ThrowIfCancellationRequested();
 
                     bool usingExternalBurner = _burningService.WillUseWindowsDiscImageBurner(burnMethod);
+                    handedOffToWindowsBurner = usingExternalBurner;
                     Log("Burning built image: " + output);
                     Log("Target drive: " + recorder.DisplayName);
                     Log("Burn backend: " + (usingExternalBurner ? "Windows Disc Image Burner" : "cdrecord"));
@@ -2508,7 +2641,7 @@ namespace LuxBurn
                     if (!usingExternalBurner && verifyAfter)
                     {
                         string hash = ChecksumService.ComputeFileHash(output, "SHA256");
-                        Log("Post-burn SHA-256: " + hash);
+                        Log("Source image SHA-256 after burn: " + hash);
                     }
 
                     e.Result = usingExternalBurner;
@@ -2516,7 +2649,7 @@ namespace LuxBurn
                 finally
                 {
                     TryDeleteDirectory(stagingPath);
-                    if (temporaryOutput && File.Exists(output))
+                    if (temporaryOutput && !handedOffToWindowsBurner && File.Exists(output))
                     {
                         try { File.Delete(output); }
                         catch { }
@@ -2530,7 +2663,7 @@ namespace LuxBurn
                 SetBusy(false, "Ready");
                 CalculateBuildImageInformation();
 
-                if (temporaryOutput)
+                if (temporaryOutput && !handedOffToWindowsBurner)
                 {
                     _burnImageText.Text = string.Empty;
                     _verifyFileText.Text = string.Empty;
@@ -2555,6 +2688,8 @@ namespace LuxBurn
 
                 bool usingExternalBurner = Convert.ToBoolean(e.Result);
                 Log(usingExternalBurner ? "Burn window opened for built image." : "Build and burn completed.");
+                if (usingExternalBurner && temporaryOutput)
+                    Log("Temporary ISO kept for Windows Disc Image Burner: " + output);
                 if (!usingExternalBurner)
                     PlaySuccessSound();
             };
@@ -2592,7 +2727,7 @@ namespace LuxBurn
                 if (!usingExternalBurner && verifyAfter)
                 {
                     string hash = ChecksumService.ComputeFileHash(image, "SHA256");
-                    Log("Post-burn SHA-256: " + hash);
+                    Log("Source image SHA-256 after burn: " + hash);
                 }
 
                 e.Result = usingExternalBurner;
@@ -2970,17 +3105,19 @@ namespace LuxBurn
             {
                 ConfigureNoCacheRequest(client);
                 string json = client.DownloadString(MakeUncachedUrl(UpdateManifestUrl));
-                return UpdateInfo.FromJson(json);
+                UpdateInfo info = UpdateInfo.FromJson(json);
+                ValidateUpdateInfo(info);
+                return info;
             }
         }
 
         private void ShowUpdatePrompt(UpdateInfo update, Version running, Version latest)
         {
-            using (UpdateDialog dialog = new UpdateDialog(FormatVersion(running), FormatVersion(latest)))
+            using (UpdateDialog dialog = new UpdateDialog(FormatVersion(running), FormatVersion(latest), Font))
             {
                 DialogResult result = dialog.ShowDialog(this);
                 if (result == DialogResult.Yes)
-                    DownloadAndLaunchUpdate(update);
+                    OpenUpdateReleasePage(update);
                 else if (result == DialogResult.Retry)
                     SaveUpdateReminder(DateTime.UtcNow.AddDays(7));
                 else
@@ -2988,46 +3125,71 @@ namespace LuxBurn
             }
         }
 
-        private void DownloadAndLaunchUpdate(UpdateInfo update)
+        private void OpenUpdateReleasePage(UpdateInfo update)
         {
             if (_burnInProgress)
             {
-                MessageBox.Show(this, "A disc operation is in progress. Finish or cancel it before updating.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(this, "A disc operation is in progress. Finish or cancel it before opening the update page.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            string installerUrl = string.IsNullOrEmpty(update.InstallerUrl) ? "https://github.com/sccpsteve/LuxBurn/releases/tag/latest" : update.InstallerUrl;
-            string tempPath = Path.Combine(Path.GetTempPath(), "LuxBurn-v" + CleanFileVersion(update.LatestVersion) + "-setup.exe");
-
             try
             {
-                ConfigureUpdateSecurity();
-                SetStatus("Downloading update...");
-                Cursor previousCursor = Cursor.Current;
-                Cursor.Current = Cursors.WaitCursor;
-                try
-                {
-                    using (WebClient client = new WebClient())
-                    {
-                        ConfigureNoCacheRequest(client);
-                        client.DownloadFile(installerUrl, tempPath);
-                    }
-                }
-                finally
-                {
-                    Cursor.Current = previousCursor;
-                }
-
-                Process.Start(tempPath);
-                Close();
+                string page = IsTrustedReleasePageUrl(update.ReleasePageUrl) ? update.ReleasePageUrl : "https://github.com/sccpsteve/LuxBurn/releases/tag/latest";
+                Process.Start(page);
+                SetStatus("Update page opened.");
             }
             catch (Exception ex)
             {
                 SetStatus("Ready");
-                Log("Update download failed: " + ex.Message);
-                if (MessageBox.Show(this, "Could not download the installer automatically. Open the download page instead?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Error) == DialogResult.Yes)
-                    Process.Start(string.IsNullOrEmpty(update.ReleasePageUrl) ? installerUrl : update.ReleasePageUrl);
+                Log("Could not open update page: " + ex.Message);
+                MessageBox.Show(this, "Could not open the update page." + Environment.NewLine + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static void ValidateUpdateInfo(UpdateInfo update)
+        {
+            if (update == null)
+                throw new InvalidOperationException("The update manifest was empty.");
+
+            if (!IsTrustedUpdateAssetUrl(update.InstallerUrl, "-setup.exe") ||
+                !IsTrustedUpdateAssetUrl(update.PortableUrl, "-portable.zip") ||
+                !IsTrustedReleasePageUrl(update.ReleasePageUrl))
+            {
+                throw new InvalidOperationException("The update manifest points outside the official LuxBurn GitHub release.");
+            }
+
+            if (!IsValidSha256(update.InstallerSha256) || !IsValidSha256(update.PortableSha256))
+                throw new InvalidOperationException("The update manifest is missing release SHA-256 hashes.");
+        }
+
+        private static bool IsTrustedUpdateAssetUrl(string value, string suffix)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out uri))
+                return false;
+
+            string url = uri.AbsoluteUri;
+            return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) &&
+                url.StartsWith(TrustedUpdatePrefix, StringComparison.OrdinalIgnoreCase) &&
+                url.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsTrustedReleasePageUrl(string value)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out uri))
+                return false;
+
+            return string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase) &&
+                uri.AbsolutePath.StartsWith("/sccpsteve/LuxBurn/releases/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsValidSha256(string value)
+        {
+            return Regex.IsMatch(value ?? string.Empty, "^[0-9a-fA-F]{64}$");
         }
 
         private static void ConfigureUpdateSecurity()
@@ -3087,11 +3249,6 @@ namespace LuxBurn
             if (version.Build > 0 || version.Revision > 0)
                 return version.Major + "." + version.Minor + "." + Math.Max(0, version.Build);
             return version.Major + "." + version.Minor;
-        }
-
-        private static string CleanFileVersion(string version)
-        {
-            return Regex.Replace(version ?? "update", @"[^0-9A-Za-z_.-]", string.Empty);
         }
 
         private static DateTime GetUpdateReminderDate()
@@ -3208,7 +3365,7 @@ namespace LuxBurn
         {
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
-                dialog.Filter = "Disc images and files (*.iso;*.img;*.bin;*.cue;*.nrg;*.mdf)|*.iso;*.img;*.bin;*.cue;*.nrg;*.mdf|All files (*.*)|*.*";
+                dialog.Filter = "ISO images (*.iso)|*.iso|All files (*.*)|*.*";
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                     target.Text = dialog.FileName;
             }
