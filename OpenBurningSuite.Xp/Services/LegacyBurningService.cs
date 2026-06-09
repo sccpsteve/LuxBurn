@@ -73,6 +73,11 @@ namespace OpenBurningSuite.Xp.Services
             get { return Type.GetTypeFromProgID("IMAPI2FS.MsftFileSystemImage") != null; }
         }
 
+        public bool IsReadcdAvailable
+        {
+            get { return !string.IsNullOrEmpty(FindReadcdPath()); }
+        }
+
         public IList<DiscRecorderInfo> GetRecorders()
         {
             List<DiscRecorderInfo> recorders = new List<DiscRecorderInfo>();
@@ -151,7 +156,7 @@ namespace OpenBurningSuite.Xp.Services
 
             Type imageType = Type.GetTypeFromProgID("IMAPI2FS.MsftFileSystemImage");
             if (imageType == null)
-                throw new InvalidOperationException("IMAPI2FS is not installed. On Windows XP, install the Microsoft Image Mastering API v2 update.");
+                throw new InvalidOperationException("IMAPI2FS is not installed. Install Microsoft Image Mastering API v2 support to build ISO images.");
 
             dynamic fileSystemImage = Activator.CreateInstance(imageType);
             fileSystemImage.FileSystemsToCreate = 7; // ISO9660, Joliet, and UDF.
@@ -192,7 +197,7 @@ namespace OpenBurningSuite.Xp.Services
             }
 
             if (!IsImapi2Available)
-                throw new InvalidOperationException("IMAPI2 is not installed. On Windows XP, install the Microsoft Image Mastering API v2 update.");
+                throw new InvalidOperationException("IMAPI2 is not installed. Install Microsoft Image Mastering API v2 support or use the bundled cdrtools backend.");
 
             string id = recorderId;
             id = ResolveRecorderId(id);
@@ -335,6 +340,48 @@ namespace OpenBurningSuite.Xp.Services
             RunProcessAndLog(cdrecordPath, args, log, progress, cancellationToken);
             ReportProgress(progress, 100, -1, -1, "Erase complete");
             Log(log, "Erase completed.");
+        }
+
+        public void CopyDiscToImage(string recorderId, string outputPath, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrEmpty(outputPath))
+                throw new InvalidOperationException("Choose an output image path first.");
+
+            string readcdPath = FindReadcdPath();
+            if (string.IsNullOrEmpty(readcdPath))
+                throw new InvalidOperationException("readcd.exe was not found. Put the cdrtools folder next to LuxBurn.");
+
+            string cdrecordPath = FindCdrecordPath();
+            if (string.IsNullOrEmpty(cdrecordPath))
+                throw new InvalidOperationException("cdrecord.exe was not found. LuxBurn needs it to map the selected drive safely.");
+
+            string directory = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            DiscRecorderInfo recorder = FindRecorder(recorderId);
+            string device = FindCdrecordDevice(cdrecordPath, recorder, log);
+            if (string.IsNullOrEmpty(device))
+                throw new InvalidOperationException("LuxBurn could not determine a readcd SPTI device address.");
+
+            CdrecordMediaInfo media = ProbeCdrecordMedia(cdrecordPath, device, log);
+            if (media == null || !media.HasMedia)
+                throw new InvalidOperationException("No readable disc was detected in the selected drive.");
+
+            if (File.Exists(outputPath))
+                File.Delete(outputPath);
+
+            string args = "dev=" + device + " f=" + QuoteArgument(outputPath) + " retries=16 -v";
+            Log(log, "Launching readcd backend: readcd.exe " + args);
+            ReportProgress(progress, 0, -1, -1, "Starting copy");
+            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken);
+
+            FileInfo image = new FileInfo(outputPath);
+            if (!image.Exists || image.Length == 0)
+                throw new InvalidOperationException("readcd completed, but no image data was written.");
+
+            ReportProgress(progress, 100, -1, -1, "Copy complete");
+            Log(log, string.Format("Copied image size: {0:N0} bytes.", image.Length));
         }
 
         private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
@@ -625,6 +672,7 @@ namespace OpenBurningSuite.Xp.Services
                         if (IsCdrecordWriteStartedLine(e.Data))
                             writeStarted = true;
                         ReportProgressFromCdrecordLine(e.Data, progress);
+                        ReportProgressFromReadcdLine(e.Data, progress);
                     }
                 };
 
@@ -703,6 +751,37 @@ namespace OpenBurningSuite.Xp.Services
                 line.IndexOf("Blanking", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 ReportProgress(progress, -1, -1, -1, "Erasing disc");
+            }
+        }
+
+        private static void ReportProgressFromReadcdLine(string line, Action<BurnProgress> progress)
+        {
+            if (progress == null || string.IsNullOrEmpty(line))
+                return;
+
+            Match percent = Regex.Match(line, @"(\d{1,3})\s*%\s*(?:done|read|complete)?", RegexOptions.IgnoreCase);
+            if (percent.Success)
+            {
+                int value = Math.Max(0, Math.Min(100, Convert.ToInt32(percent.Groups[1].Value)));
+                ReportProgress(progress, value, -1, -1, "Copying disc");
+                return;
+            }
+
+            Match sectors = Regex.Match(line, @"(\d+)\s*(?:of|/)\s*(\d+)\s*(?:sectors|blocks)?", RegexOptions.IgnoreCase);
+            if (sectors.Success)
+            {
+                long current = Convert.ToInt64(sectors.Groups[1].Value);
+                long total = Math.Max(1, Convert.ToInt64(sectors.Groups[2].Value));
+                int value = Math.Max(0, Math.Min(100, (int)Math.Round((current * 100.0) / total)));
+                ReportProgress(progress, value, -1, -1, "Copying disc");
+                return;
+            }
+
+            if (line.IndexOf("capacity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                line.IndexOf("reading", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                line.IndexOf("addr", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                ReportProgress(progress, -1, -1, -1, "Copying disc");
             }
         }
 
@@ -1334,6 +1413,59 @@ namespace OpenBurningSuite.Xp.Services
                 try
                 {
                     string candidate = Path.Combine(directories[i], "cdrecord.exe");
+                    if (File.Exists(candidate))
+                        return candidate;
+                }
+                catch
+                {
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string FindReadcdPath()
+        {
+            string cdrecordPath = FindCdrecordPath();
+            if (!string.IsNullOrEmpty(cdrecordPath))
+            {
+                string sibling = Path.Combine(Path.GetDirectoryName(cdrecordPath), "readcd.exe");
+                if (File.Exists(sibling))
+                    return sibling;
+            }
+
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+
+            string[] candidates = new[]
+            {
+                Path.Combine(baseDir, "Tools", "cdrtools", "readcd.exe"),
+                Path.Combine(baseDir, "..", "..", "Tools", "cdrtools", "readcd.exe"),
+                Path.Combine(programFilesX86, "cdrtfe", "tools", "cdrtools", "readcd.exe"),
+                Path.Combine(programFiles, "cdrtfe", "tools", "cdrtools", "readcd.exe")
+            };
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                string candidate = Path.GetFullPath(candidates[i]);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            string path = Environment.GetEnvironmentVariable("PATH");
+            if (string.IsNullOrEmpty(path))
+                return string.Empty;
+
+            string[] directories = path.Split(Path.PathSeparator);
+            for (int i = 0; i < directories.Length; i++)
+            {
+                if (string.IsNullOrEmpty(directories[i]))
+                    continue;
+
+                try
+                {
+                    string candidate = Path.Combine(directories[i], "readcd.exe");
                     if (File.Exists(candidate))
                         return candidate;
                 }

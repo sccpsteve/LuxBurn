@@ -26,12 +26,15 @@ namespace OpenBurningSuite.Xp
         private TextBox _buildOutputText;
         private TextBox _volumeNameText;
         private TextBox _burnImageText;
+        private TextBox _copyOutputText;
         private TextBox _verifyFileText;
         private TextBox _expectedHashText;
         private TextBox _actualHashText;
         private TextBox _logText;
         private ComboBox _algorithmCombo;
+        private ComboBox _copyDriveCombo;
         private ComboBox _eraseDriveCombo;
+        private CheckBox _verifyAfterCopyCheck;
         private CheckBox _fullEraseCheck;
         private CheckBox _ejectAfterBurnCheck;
         private CheckBox _verifyAfterBurnCheck;
@@ -41,11 +44,14 @@ namespace OpenBurningSuite.Xp
         private Button _buildButton;
         private Button _burnButton;
         private Button _abortButton;
+        private Button _copyButton;
+        private Button _copyAbortButton;
         private Button _eraseButton;
         private Button _verifyButton;
         private NeutralProgressBar _writeProgress;
         private NeutralProgressBar _bufferProgress;
         private NeutralProgressBar _deviceBufferProgress;
+        private NeutralProgressBar _copyProgress;
         private TabControl _tabs;
         private CancellationTokenSource _burnCancellation;
         private bool _burnInProgress;
@@ -143,15 +149,15 @@ namespace OpenBurningSuite.Xp
             parent.Controls.Add(burnTabButton);
 
             Control eraseTabButton = CreateSideButton(164, "Erase Disc", "18_delete.png");
-            eraseTabButton.Click += delegate { _tabs.SelectedIndex = 3; };
+            eraseTabButton.Click += delegate { _tabs.SelectedIndex = 4; };
             parent.Controls.Add(eraseTabButton);
 
             Control verifyTabButton = CreateSideButton(204, "Verify Files", "6-ApplyButton.png");
-            verifyTabButton.Click += delegate { _tabs.SelectedIndex = 4; };
+            verifyTabButton.Click += delegate { _tabs.SelectedIndex = 5; };
             parent.Controls.Add(verifyTabButton);
 
             Control wizardTabButton = CreateSideButton(244, "Wizards", "wand.png");
-            wizardTabButton.Click += delegate { _tabs.SelectedIndex = 5; };
+            wizardTabButton.Click += delegate { _tabs.SelectedIndex = 6; };
             parent.Controls.Add(wizardTabButton);
         }
 
@@ -165,6 +171,7 @@ namespace OpenBurningSuite.Xp
             _tabs.TabPages.Add(CreateDriveTab());
             _tabs.TabPages.Add(CreateBuildTab());
             _tabs.TabPages.Add(CreateBurnTab());
+            _tabs.TabPages.Add(CreateCopyTab());
             _tabs.TabPages.Add(CreateEraseTab());
             _tabs.TabPages.Add(CreateVerifyTab());
             _tabs.TabPages.Add(CreateWizardTab());
@@ -340,6 +347,60 @@ namespace OpenBurningSuite.Xp
             return page;
         }
 
+        private TabPage CreateCopyTab()
+        {
+            TabPage page = CreatePage("Copy Disc");
+            GroupBox group = CreateGroup("Copy optical media to image", 14, 14, 760, 310);
+            page.Controls.Add(group);
+
+            AddLabel(group, "Source drive", 18, 32);
+            _copyDriveCombo = new ComboBox();
+            _copyDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _copyDriveCombo.Location = new Point(130, 28);
+            _copyDriveCombo.Size = new Size(500, 22);
+            group.Controls.Add(_copyDriveCombo);
+
+            Button refresh = CreateButton("Refresh", 642, 27, 86, 25);
+            refresh.Click += delegate { RefreshDrives(); };
+            group.Controls.Add(refresh);
+
+            AddLabel(group, "Output image", 18, 70);
+            _copyOutputText = CreateTextBox(130, 66, 500);
+            group.Controls.Add(_copyOutputText);
+            Button browseOutput = CreateButton("Save as", 642, 65, 86, 25);
+            browseOutput.Click += delegate { BrowseSaveIso(_copyOutputText); };
+            group.Controls.Add(browseOutput);
+
+            _verifyAfterCopyCheck = new CheckBox();
+            _verifyAfterCopyCheck.Text = "Calculate SHA-256 after copy";
+            _verifyAfterCopyCheck.Checked = true;
+            _verifyAfterCopyCheck.Location = new Point(130, 104);
+            _verifyAfterCopyCheck.Size = new Size(220, 22);
+            group.Controls.Add(_verifyAfterCopyCheck);
+
+            Label note = new Label();
+            note.Text = "Copies standard data discs to ISO-style images using the bundled readcd backend. Audio CDs and special multi-session layouts are planned for a later release.";
+            note.Location = new Point(130, 136);
+            note.Size = new Size(560, 48);
+            note.ForeColor = Color.FromArgb(72, 72, 72);
+            group.Controls.Add(note);
+
+            AddLabel(group, "Progress", 18, 202);
+            _copyProgress = CreateProgressBar(130, 200, 500);
+            group.Controls.Add(_copyProgress);
+
+            _copyButton = CreateButton("Copy disc", 130, 250, 120, 29);
+            _copyButton.Click += delegate { CopyDisc(); };
+            group.Controls.Add(_copyButton);
+
+            _copyAbortButton = CreateButton("Abort", 262, 250, 90, 29);
+            _copyAbortButton.Enabled = false;
+            _copyAbortButton.Click += delegate { AbortBurn(); };
+            group.Controls.Add(_copyAbortButton);
+
+            return page;
+        }
+
         private TabPage CreateVerifyTab()
         {
             TabPage page = CreatePage("Verify");
@@ -392,7 +453,7 @@ namespace OpenBurningSuite.Xp
             surface.Controls.Add(group);
 
             Label intro = new Label();
-            intro.Text = "Choose a task. LuxBurn will open the matching workspace and preselect sensible settings for this XP build.";
+            intro.Text = "Choose a task. LuxBurn will open the matching workspace and preselect sensible settings.";
             intro.Location = new Point(18, 24);
             intro.Size = new Size(850, 34);
             intro.ForeColor = Color.FromArgb(72, 72, 72);
@@ -414,11 +475,11 @@ namespace OpenBurningSuite.Xp
                 462,
                 66,
                 "Audio && Music Wizard",
-                "Copy music files as a data disc. Red Book audio CD authoring belongs to the full modern engine.",
+                "Copy music files as a data disc. Red Book audio CD authoring is planned for a later release.",
                 "Music data disc",
                 delegate { StartBuildWizard("MUSIC_DISC"); },
                 "Audio CD",
-                delegate { ShowModernWizardNotice("Audio CD authoring and audio ripping are not ported into the XP build yet."); });
+                delegate { ShowPlannedWizardNotice("Audio CD authoring and audio ripping are planned for a later release."); });
 
             CreateWizardCard(
                 group,
@@ -436,7 +497,7 @@ namespace OpenBurningSuite.Xp
                 462,
                 196,
                 "Game Disc Wizard",
-                "Burn or verify an existing game image. Console-specific patching stays in the modern build.",
+                "Burn or verify an existing game image. Console-specific patching is planned for a later release.",
                 "Burn game image",
                 delegate { StartBurnWizard("Game Disc Wizard"); },
                 "Verify image",
@@ -447,11 +508,11 @@ namespace OpenBurningSuite.Xp
                 18,
                 326,
                 "Copy Disc Wizard",
-                "Copying a disc to an image requires the read engine from the modern application.",
-                "Open Log",
-                delegate { _tabs.SelectedIndex = 6; SetStatus("Copy Disc Wizard is not ported to the XP build yet."); },
-                "Details",
-                delegate { ShowModernWizardNotice("Copy Disc Wizard uses the modern read engine and is not ported into LuxBurn XP yet."); });
+                "Copy a standard data disc to an ISO-style image with optional checksum verification.",
+                "Copy disc",
+                delegate { StartCopyWizard(); },
+                "Refresh drives",
+                delegate { RefreshDrives(); _tabs.SelectedIndex = 3; });
 
             CreateWizardCard(
                 group,
@@ -460,9 +521,9 @@ namespace OpenBurningSuite.Xp
                 "Blank / Erase Wizard",
                 "Erase rewritable media before burning. CD-R and DVD-R media cannot be erased.",
                 "Erase disc",
-                delegate { _tabs.SelectedIndex = 3; SetStatus("Blank / Erase Wizard opened."); },
+                delegate { _tabs.SelectedIndex = 4; SetStatus("Blank / Erase Wizard opened."); },
                 "Refresh drives",
-                delegate { RefreshDrives(); _tabs.SelectedIndex = 3; });
+                delegate { RefreshDrives(); _tabs.SelectedIndex = 4; });
 
             return page;
         }
@@ -584,7 +645,8 @@ namespace OpenBurningSuite.Xp
             string imapi = _burningService.IsImapi2Available ? "IMAPI2: ready" : "IMAPI2: not installed";
             string fs = _burningService.IsImapi2FileSystemAvailable ? "IMAPI2FS: ready" : "IMAPI2FS: not installed";
             string cdrecord = _burningService.IsCdrecordAvailable ? "cdrecord: ready" : "cdrecord: not found";
-            _componentStatusLabel.Text = cdrecord + Environment.NewLine + imapi + "    " + fs;
+            string readcd = _burningService.IsReadcdAvailable ? "readcd: ready" : "readcd: not found";
+            _componentStatusLabel.Text = cdrecord + "    " + readcd + Environment.NewLine + imapi + "    " + fs;
         }
 
         private void StartBuildWizard(string preset)
@@ -620,7 +682,7 @@ namespace OpenBurningSuite.Xp
 
         private void StartVerifyWizard(string sourceWizard)
         {
-            _tabs.SelectedIndex = 4;
+            _tabs.SelectedIndex = 5;
             SetStatus(sourceWizard + " verification opened.");
             Log("Wizard selected: " + sourceWizard + " verify image.");
 
@@ -628,9 +690,19 @@ namespace OpenBurningSuite.Xp
                 BrowseOpenImage(_verifyFileText);
         }
 
-        private void ShowModernWizardNotice(string message)
+        private void StartCopyWizard()
         {
-            SetStatus("Wizard feature is not ported to the XP build yet.");
+            _tabs.SelectedIndex = 3;
+            SetStatus("Copy Disc Wizard opened.");
+            Log("Wizard selected: Copy Disc.");
+
+            if (_copyOutputText.Text.Trim().Length == 0)
+                BrowseSaveIso(_copyOutputText);
+        }
+
+        private void ShowPlannedWizardNotice(string message)
+        {
+            SetStatus("Wizard feature is planned for a later release.");
             Log(message);
             MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -798,6 +870,7 @@ namespace OpenBurningSuite.Xp
                 IList<DiscRecorderInfo> recorders = _burningService.GetRecorders();
                 _driveCombo.Items.Clear();
                 _burnDriveCombo.Items.Clear();
+                _copyDriveCombo.Items.Clear();
                 _eraseDriveCombo.Items.Clear();
                 _driveList.Items.Clear();
 
@@ -805,6 +878,7 @@ namespace OpenBurningSuite.Xp
                 {
                     _driveCombo.Items.Add(recorder);
                     _burnDriveCombo.Items.Add(recorder);
+                    _copyDriveCombo.Items.Add(recorder);
                     _eraseDriveCombo.Items.Add(recorder);
 
                     ListViewItem item = new ListViewItem(recorder.DisplayName);
@@ -818,6 +892,8 @@ namespace OpenBurningSuite.Xp
                     _driveCombo.SelectedIndex = 0;
                 if (_burnDriveCombo.Items.Count > 0)
                     _burnDriveCombo.SelectedIndex = 0;
+                if (_copyDriveCombo.Items.Count > 0)
+                    _copyDriveCombo.SelectedIndex = 0;
                 if (_eraseDriveCombo.Items.Count > 0)
                     _eraseDriveCombo.SelectedIndex = 0;
 
@@ -919,6 +995,79 @@ namespace OpenBurningSuite.Xp
                 Log(usingExternalBurner ? "Burn window opened." : "Burn completed.");
                 if (!usingExternalBurner)
                     PlaySuccessSound();
+            };
+            worker.RunWorkerAsync();
+        }
+
+        private void CopyDisc()
+        {
+            DiscRecorderInfo recorder = _copyDriveCombo.SelectedItem as DiscRecorderInfo;
+            string recorderId = recorder == null ? string.Empty : recorder.Id;
+            string output = _copyOutputText.Text.Trim();
+            bool verifyAfter = _verifyAfterCopyCheck.Checked;
+
+            if (recorder == null)
+            {
+                MessageBox.Show(this, "Choose a source drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (output.Length == 0)
+            {
+                MessageBox.Show(this, "Choose an output image path first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (File.Exists(output) &&
+                MessageBox.Show(this, "Replace the existing output image?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            ResetBurnProgress();
+            _burnCancellation = new CancellationTokenSource();
+            _burnInProgress = true;
+            SetBusy(true, "Starting copy...");
+
+            BackgroundWorker worker = new BackgroundWorker();
+            worker.DoWork += delegate
+            {
+                Log("Copying disc from " + recorder.DisplayName + " to " + output);
+                _burningService.CopyDiscToImage(recorderId, output, Log, UpdateBurnProgress, _burnCancellation.Token);
+
+                if (verifyAfter)
+                {
+                    string hash = ChecksumService.ComputeFileHash(output, "SHA256");
+                    Log("Copy SHA-256: " + hash);
+                }
+            };
+            worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs e)
+            {
+                _burnInProgress = false;
+                _burnCancellation = null;
+                SetBusy(false, "Ready");
+
+                if (e.Error != null)
+                {
+                    if (e.Error is OperationCanceledException)
+                    {
+                        Log("Copy cancelled.");
+                        SetStatus("Copy cancelled.");
+                        return;
+                    }
+
+                    Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
+                    if (e.Error.InnerException != null)
+                        Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
+
+                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                Log("Copy completed.");
+                _burnImageText.Text = output;
+                _verifyFileText.Text = output;
+                PlaySuccessSound();
             };
             worker.RunWorkerAsync();
         }
@@ -1044,9 +1193,11 @@ namespace OpenBurningSuite.Xp
             _refreshButton.Enabled = !busy;
             _buildButton.Enabled = !busy;
             _burnButton.Enabled = !busy;
+            _copyButton.Enabled = !busy;
             _eraseButton.Enabled = !busy;
             _verifyButton.Enabled = !busy;
             _abortButton.Enabled = busy && _burnInProgress;
+            _copyAbortButton.Enabled = busy && _burnInProgress;
             SetStatus(status);
         }
 
@@ -1062,6 +1213,7 @@ namespace OpenBurningSuite.Xp
             SetStatus("Cancelling...");
             _burnCancellation.Cancel();
             _abortButton.Enabled = false;
+            _copyAbortButton.Enabled = false;
         }
 
         private void MainFormFormClosing(object sender, FormClosingEventArgs e)
@@ -1070,7 +1222,7 @@ namespace OpenBurningSuite.Xp
                 return;
 
             e.Cancel = true;
-            if (MessageBox.Show(this, "A burn is in progress. Do you want to cancel it?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            if (MessageBox.Show(this, "A disc operation is in progress. Do you want to cancel it?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
                 AbortBurnWithoutPrompt();
         }
 
@@ -1083,6 +1235,7 @@ namespace OpenBurningSuite.Xp
             SetStatus("Cancelling...");
             _burnCancellation.Cancel();
             _abortButton.Enabled = false;
+            _copyAbortButton.Enabled = false;
         }
 
         private void ResetBurnProgress()
@@ -1090,6 +1243,7 @@ namespace OpenBurningSuite.Xp
             _writeProgress.Value = 0;
             _bufferProgress.Value = 0;
             _deviceBufferProgress.Value = 0;
+            _copyProgress.Value = 0;
         }
 
         private void UpdateBurnProgress(BurnProgress progress)
@@ -1104,7 +1258,10 @@ namespace OpenBurningSuite.Xp
             }
 
             if (progress.ProgressPercent >= 0)
+            {
                 _writeProgress.Value = progress.ProgressPercent;
+                _copyProgress.Value = progress.ProgressPercent;
+            }
             if (progress.BufferPercent >= 0)
                 _bufferProgress.Value = progress.BufferPercent;
             if (progress.DeviceBufferPercent >= 0)
