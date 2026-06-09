@@ -44,8 +44,8 @@ jobs:
           $notes = @"
           Automatic build from commit $env:GITHUB_SHA.
 
-          Download LuxBurn-v1.5.3-setup.exe for the installer.
-          Download LuxBurn-v1.5.3-portable.zip for the portable package.
+          Download LuxBurn-v1.5.4-setup.exe for the installer.
+          Download LuxBurn-v1.5.4-portable.zip for the portable package.
           "@
 
           git config user.name "github-actions[bot]"
@@ -56,9 +56,9 @@ jobs:
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release edit $tag --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
-            gh release upload $tag dist\LuxBurn-v1.5.3-portable.zip dist\LuxBurn-v1.5.3-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag dist\LuxBurn-v1.5.4-portable.zip dist\LuxBurn-v1.5.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag dist\LuxBurn-v1.5.3-portable.zip dist\LuxBurn-v1.5.3-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
+            gh release create $tag dist\LuxBurn-v1.5.4-portable.zip dist\LuxBurn-v1.5.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
           }
 
       - name: Verify public download links
@@ -66,15 +66,16 @@ jobs:
         shell: pwsh
         run: |
           $urls = @(
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.3-setup.exe",
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.3-portable.zip",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.4-setup.exe",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.4-portable.zip",
             "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-update.json"
           )
 
           foreach ($url in $urls) {
             $ok = $false
             for ($try = 1; $try -le 12; $try++) {
-              & curl.exe --fail --location --silent --head $url | Out-Null
+              $freshUrl = if ($url.EndsWith("LuxBurn-update.json")) { "$url?luxburn_nocache=$([DateTime]::UtcNow.Ticks)-$try" } else { $url }
+              & curl.exe --fail --location --silent --head -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" $freshUrl | Out-Null
               if ($LASTEXITCODE -eq 0) {
                 $ok = $true
                 break

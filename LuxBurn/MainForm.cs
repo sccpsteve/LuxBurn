@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Net.Cache;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -2967,8 +2968,8 @@ namespace LuxBurn
             ConfigureUpdateSecurity();
             using (WebClient client = new WebClient())
             {
-                client.Headers.Add("User-Agent", "LuxBurn/" + FormatVersion(GetRunningVersion()));
-                string json = client.DownloadString(UpdateManifestUrl);
+                ConfigureNoCacheRequest(client);
+                string json = client.DownloadString(MakeUncachedUrl(UpdateManifestUrl));
                 return UpdateInfo.FromJson(json);
             }
         }
@@ -3008,7 +3009,7 @@ namespace LuxBurn
                 {
                     using (WebClient client = new WebClient())
                     {
-                        client.Headers.Add("User-Agent", "LuxBurn/" + FormatVersion(GetRunningVersion()));
+                        ConfigureNoCacheRequest(client);
                         client.DownloadFile(installerUrl, tempPath);
                     }
                 }
@@ -3038,6 +3039,22 @@ namespace LuxBurn
             catch
             {
             }
+        }
+
+        private static void ConfigureNoCacheRequest(WebClient client)
+        {
+            client.CachePolicy = new RequestCachePolicy(RequestCacheLevel.NoCacheNoStore);
+            client.Headers.Add("User-Agent", "LuxBurn/" + FormatVersion(GetRunningVersion()));
+            client.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
+            client.Headers.Add("Pragma", "no-cache");
+            client.Headers.Add("Expires", "0");
+        }
+
+        private static string MakeUncachedUrl(string url)
+        {
+            string separator = url.IndexOf('?') >= 0 ? "&" : "?";
+            string stamp = DateTime.UtcNow.Ticks.ToString() + "-" + Guid.NewGuid().ToString("N");
+            return url + separator + "luxburn_nocache=" + stamp;
         }
 
         private static Version GetRunningVersion()

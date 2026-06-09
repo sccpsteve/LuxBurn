@@ -4,7 +4,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "APP_NAME=LuxBurn"
-set "APP_VERSION=1.5.3"
+set "APP_VERSION=1.5.4"
 set "ROOT=%CD%"
 set "RELEASE=%ROOT%\LuxBurn\bin\Release"
 set "DIST=%ROOT%\dist"
@@ -63,8 +63,10 @@ if not defined ISCC (
 if errorlevel 1 exit /b 1
 
 echo Creating update manifest...
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "[DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')"`) do set "MANIFEST_GENERATED=%%I"
 > "%UPDATE_MANIFEST%" echo {
 >> "%UPDATE_MANIFEST%" echo   "latestVersion": "%APP_VERSION%",
+>> "%UPDATE_MANIFEST%" echo   "generatedAtUtc": "%MANIFEST_GENERATED%",
 >> "%UPDATE_MANIFEST%" echo   "installerUrl": "https://github.com/sccpsteve/LuxBurn/releases/download/latest/%APP_NAME%-v%APP_VERSION%-setup.exe",
 >> "%UPDATE_MANIFEST%" echo   "portableUrl": "https://github.com/sccpsteve/LuxBurn/releases/download/latest/%APP_NAME%-v%APP_VERSION%-portable.zip",
 >> "%UPDATE_MANIFEST%" echo   "releasePageUrl": "https://github.com/sccpsteve/LuxBurn/releases/tag/latest"
