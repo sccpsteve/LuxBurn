@@ -2,7 +2,7 @@
 
 <img src="OpenBurningSuite/icon.png" width="128px">
 
-# Open Burning Suite
+# LuxBurn
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
@@ -16,9 +16,9 @@
 
 ## About
 
-**Open Burning Suite** is a free, open-source disc burning application for **Windows**, **Linux**, and **macOS**. It lets you burn, copy, create, and verify CDs, DVDs, HD DVDs, and Blu-ray discs — all from one app. Step-by-step wizards for audio, video, data, and gaming discs make it easy to get started, while advanced options give experienced users full control.
+**LuxBurn** is a free, open-source disc burning application for **Windows**, **Linux**, and **macOS**. It lets you burn, copy, create, and verify CDs, DVDs, HD DVDs, and Blu-ray discs — all from one app. Step-by-step wizards for audio, video, data, and gaming discs make it easy to get started, while advanced options give experienced users full control.
 
-Under the hood, Open Burning Suite talks directly to your optical drive using native **SCSI/MMC commands**, so there are no external tools to install. It's built with **.NET 8** and **Avalonia UI** for a modern look and feel on every platform.
+Under the hood, LuxBurn talks directly to your optical drive using native **SCSI/MMC commands**. The Windows compatibility build also bundles a cdrecord/cdrtools backend for reliable CD/DVD writing on legacy systems. It's built with **.NET 8** and **Avalonia UI** for a modern look and feel on every platform.
 
 ---
 
@@ -57,8 +57,23 @@ See [Supported Formats](https://svengdk.github.io/OpenBurningSuite/supported-for
 ## Platform Guides
 
 - **Windows** — Run the application as Administrator for SCSI passthrough access.
+- **Windows XP** — Use the separate WinForms/.NET Framework 4.0 build in [`WINDOWS_XP.md`](WINDOWS_XP.md).
 - **Linux** — See [LINUX.md](LINUX.md) for DEB, RPM, APK, Pacman, AppImage, Snap, Flatpak instructions, and SCSI permissions setup.
 - **macOS** — See [macOS.md](macOS.md) for PKG, DMG, Gatekeeper instructions, and IOKit SCSI access.
+
+## Launch
+
+Modern app:
+
+```cmd
+dotnet run --project OpenBurningSuite
+```
+
+Windows XP app:
+
+```cmd
+run-xp.cmd
+```
 
 ---
 
