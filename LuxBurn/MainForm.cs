@@ -3092,6 +3092,19 @@ namespace LuxBurn
                     return;
                 }
 
+                try
+                {
+                    ValidateUpdateInfo(update);
+                }
+                catch (Exception ex)
+                {
+                    SetStatus("Ready");
+                    Log("Update manifest rejected: " + ex.Message);
+                    if (manual)
+                        MessageBox.Show(this, "Could not check for updates." + Environment.NewLine + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
                 SetStatus("Update available.");
                 ShowUpdatePrompt(update, running, latest);
             };
@@ -3105,9 +3118,7 @@ namespace LuxBurn
             {
                 ConfigureNoCacheRequest(client);
                 string json = client.DownloadString(MakeUncachedUrl(UpdateManifestUrl));
-                UpdateInfo info = UpdateInfo.FromJson(json);
-                ValidateUpdateInfo(info);
-                return info;
+                return UpdateInfo.FromJson(json);
             }
         }
 
