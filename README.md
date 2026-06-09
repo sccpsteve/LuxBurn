@@ -1,82 +1,74 @@
 <div align="center">
 
-<img src="OpenBurningSuite/icon.png" width="128px">
+<img src="OpenBurningSuite.Xp/Assets/Brand/LuxburnLarge.png" alt="LuxBurn" width="640">
 
 # LuxBurn
 
-[![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)]()
-
-<img src="/Screenshots/Home.png" width="75%">
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)]()
 
 </div>
 
----
-
 ## About
 
-**LuxBurn** is a free, open-source disc burning application for **Windows**, **Linux**, and **macOS**. It lets you burn, copy, create, and verify CDs, DVDs, HD DVDs, and Blu-ray discs — all from one app. Step-by-step wizards for audio, video, data, and gaming discs make it easy to get started, while advanced options give experienced users full control.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.4 includes a Windows XP-compatible WinForms build that also runs on modern Windows.
 
-Under the hood, LuxBurn talks directly to your optical drive using native **SCSI/MMC commands**. The Windows compatibility build also bundles a cdrecord/cdrtools backend for reliable CD/DVD writing on legacy systems. It's built with **.NET 8** and **Avalonia UI** for a modern look and feel on every platform.
+The compatibility build uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
----
+<div align="center">
 
-## Features
+<img src="OpenBurningSuite.Xp/Assets/Screenshots/LuxBurn-v1.4.png" alt="LuxBurn main window" width="900">
 
-| | Feature | Highlights |
-|:--:|:--------|:-----------|
-| 🔥 | **Burn** | CD-R/RW, DVD±R/RW, DVD-RAM, HD DVD, BD-R/RE, BDXL, M-DISC · TAO/SAO/DAO/RAW write modes · Build on the fly · Multi-copy · Simulation · Overburn · CUE sheets |
-| 💿 | **Read** | ISO, BIN/CUE, CCD/IMG/SUB, TOC/BIN, NRG, MDF/MDS, IMG, CDI output · Raw 2352-byte sectors · Subchannel extraction · Audio paranoia · Gaming presets |
-| 🏗 | **Build** | ISO 9660, Joliet, UDF, Rock Ridge, HFS+ filesystems · El Torito bootable discs · VCD/SVCD/XSVCD |
-| 🎵 | **Audio** | Create audio CDs with CD-TEXT · Rip audio CDs to WAV or BIN/CUE · Copy music files to disc · Import M3U, PLS, WPL, ASX playlists |
-| 🎬 | **Video** | DVD-Video authoring (VIDEO_TS) · Blu-ray BDMV · BDAV recording format · Blu-ray 3D (MVC/SBS/TAB) · FFmpeg-based transcoding |
-| ✅ | **Verify** | Sector-by-sector integrity · Disc-to-image comparison · CRC32, MD5, SHA-1, SHA-256, SHA-512 checksums |
-| 🎮 | **Gaming** | PlayStation 1–5, PSP · GameCube, Wii, Wii U · Dreamcast, Saturn, Mega CD · Xbox, Xbox 360, Xbox One/Series · Neo Geo CD, 3DO, CD-i, PC Engine, Amiga CD32/CDTV, Atari Jaguar CD · LibCrypt, region-free & boot-sector patching |
-| ⚙️ | **Advanced** | Disc erase & format (quick/full) · Eject/load tray · Finalization · M-DISC archival · Real-time disc visualization |
-| 🔒 | **Encryption** | AES-256-CBC disc image encryption with password protection (.obse format) · PS3 disc decryption (IRD/dkey/hex) |
-| 🧙 | **Wizards** | Step-by-step Quick Start wizards for Audio, Video, Data, Gaming, Copy, and Blank/Erase discs |
+</div>
 
-See the [full documentation](https://svengdk.github.io/OpenBurningSuite/) for detailed guides on each feature.
+## Highlights
 
----
-
-## Supported Media
-
-- **CD:** CD-R/RW (74, 80, 90, 99 min)
-- **DVD:** DVD±R/RW, DVD-R DL, DVD+R DL, DVD-RAM
-- **HD DVD:** HD DVD-R/RW/RAM (SL/DL)
-- **Blu-ray:** BD-R/RE (25–128 GB, BDXL)
-- **UHD Blu-ray:** UHD BD-66, UHD BD-100
-- **M-DISC:** DVD, BD-R (SL/DL/XL)
-
-See [Supported Formats](https://svengdk.github.io/OpenBurningSuite/supported-formats) for the complete reference.
-
----
-
-## Platform Guides
-
-- **Windows** — Run the application as Administrator for SCSI passthrough access.
-- **Windows XP** — Use the separate WinForms/.NET Framework 4.0 build in [`WINDOWS_XP.md`](WINDOWS_XP.md).
-- **Linux** — See [LINUX.md](LINUX.md) for DEB, RPM, APK, Pacman, AppImage, Snap, Flatpak instructions, and SCSI permissions setup.
-- **macOS** — See [macOS.md](macOS.md) for PKG, DMG, Gatekeeper instructions, and IOKit SCSI access.
+| Area | Details |
+|:--|:--|
+| Burn images | Writes ISO images to optical media using cdrecord. |
+| Media checks | Detects blank, non-empty, finalized, non-erasable, and oversized discs before writing. |
+| Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
+| Progress | Shows write progress, buffer, and device buffer. |
+| Abort handling | Aborts backend burns and asks before closing during an active burn. |
+| Verification | Calculates SHA-256, SHA-1, SHA-512, or MD5 checksums. |
+| Legacy support | Built with .NET Framework 4 for Windows XP compatibility. |
 
 ## Launch
 
-Modern app:
+Build LuxBurn:
 
 ```cmd
-dotnet run --project OpenBurningSuite
+build-xp.cmd
 ```
 
-Windows XP app:
+Run LuxBurn:
 
 ```cmd
 run-xp.cmd
 ```
 
----
+Open the built executable directly:
+
+```cmd
+OpenBurningSuite.Xp\bin\Release\LuxBurn.exe
+```
+
+## Release Artifact
+
+The v1.4 release zip is created as:
+
+```cmd
+LuxBurn-v1.4.zip
+```
+
+## Notes
+
+- Run LuxBurn as Administrator for optical drive access.
+- CD-R and other write-once media cannot be erased or safely resumed after a failed write.
+- If cdrecord is unavailable, LuxBurn can open Windows Disc Image Burner on Windows versions that include it.
+- The Windows XP compatibility build is documented in [WINDOWS_XP.md](WINDOWS_XP.md).
+- Bundled third-party tools retain their own licenses.
 
 ## License
 
-Distributed under the **BSD 2-Clause License**. See [`LICENSE`](LICENSE) for more information.
+Distributed under the BSD 2-Clause License. See [LICENSE](LICENSE).
