@@ -155,6 +155,7 @@ namespace LuxBurn
 
             BuildLeftPanel(split.Panel1);
             BuildTabs(split.Panel2);
+            _tabs.SelectedIndex = 6;
         }
 
         private MenuStrip CreateMainMenu()
@@ -227,39 +228,47 @@ namespace LuxBurn
 
         private void BuildLeftPanel(Control parent)
         {
-            parent.BackColor = Color.FromArgb(229, 229, 224);
+            parent.BackColor = Color.FromArgb(32, 45, 55);
+            parent.BackgroundImage = LoadUiAsset("LuxburnSidebar1.png");
+            parent.BackgroundImageLayout = ImageLayout.Stretch;
             parent.Padding = new Padding(12);
 
             Label section = new Label();
             section.Text = "Operations";
             section.Font = new Font("Tahoma", 8.25f, FontStyle.Bold);
+            section.ForeColor = Color.White;
+            section.BackColor = Color.Transparent;
             section.AutoSize = true;
             section.Location = new Point(12, 14);
             parent.Controls.Add(section);
 
-            _refreshButton = CreateSideButton(44, "Refresh Drives", "icon_refresh.png");
+            Control ezModeButton = CreateSideButton(42, "EZ Mode", "wand.png");
+            ezModeButton.Click += delegate { _tabs.SelectedIndex = 6; };
+            parent.Controls.Add(ezModeButton);
+
+            _refreshButton = CreateSideButton(113, "Refresh", "icon_refresh.png");
             _refreshButton.Click += delegate { RefreshDrives(); };
             parent.Controls.Add(_refreshButton);
 
-            Control buildTabButton = CreateSideButton(84, "Build", "145_add.png");
+            Control buildTabButton = CreateSideButton(184, "Build", "145_add.png");
             buildTabButton.Click += delegate { _tabs.SelectedIndex = 1; };
             parent.Controls.Add(buildTabButton);
 
-            Control burnTabButton = CreateSideButton(124, "Write", "139-Edit.png");
+            Control burnTabButton = CreateSideButton(255, "Write", "139-Edit.png");
             burnTabButton.Click += delegate { _tabs.SelectedIndex = 2; };
             parent.Controls.Add(burnTabButton);
 
-            Control eraseTabButton = CreateSideButton(164, "Erase Disc", "18_delete.png");
+            Control copyTabButton = CreateSideButton(326, "Copy", "icon_build.png");
+            copyTabButton.Click += delegate { _tabs.SelectedIndex = 3; };
+            parent.Controls.Add(copyTabButton);
+
+            Control eraseTabButton = CreateSideButton(397, "Erase", "18_delete.png");
             eraseTabButton.Click += delegate { _tabs.SelectedIndex = 4; };
             parent.Controls.Add(eraseTabButton);
 
-            Control verifyTabButton = CreateSideButton(204, "Verify Files", "6-ApplyButton.png");
+            Control verifyTabButton = CreateSideButton(468, "Verify", "6-ApplyButton.png");
             verifyTabButton.Click += delegate { _tabs.SelectedIndex = 5; };
             parent.Controls.Add(verifyTabButton);
-
-            Control wizardTabButton = CreateSideButton(244, "Wizards", "wand.png");
-            wizardTabButton.Click += delegate { _tabs.SelectedIndex = 6; };
-            parent.Controls.Add(wizardTabButton);
         }
 
         private void BuildTabs(Control parent)
@@ -587,89 +596,40 @@ namespace LuxBurn
 
         private TabPage CreateWizardTab()
         {
-            TabPage page = CreatePage("Wizards");
+            TabPage page = CreatePage("EZ Mode");
 
             Panel surface = new Panel();
             surface.Dock = DockStyle.Fill;
             surface.AutoScroll = true;
-            surface.BackColor = page.BackColor;
+            surface.BackColor = Color.Transparent;
             page.Controls.Add(surface);
 
-            GroupBox group = CreateGroup("Quick Start Wizards", 14, 14, 910, 500);
-            surface.Controls.Add(group);
+            Label heading = new Label();
+            heading.Text = "EZ Mode Picker";
+            heading.Font = new Font("Tahoma", 18f, FontStyle.Bold);
+            heading.ForeColor = Color.White;
+            heading.BackColor = Color.Transparent;
+            heading.Location = new Point(34, 24);
+            heading.Size = new Size(420, 36);
+            surface.Controls.Add(heading);
 
             Label intro = new Label();
-            intro.Text = "Choose a task. LuxBurn will open the matching workspace and preselect sensible settings.";
-            intro.Location = new Point(18, 24);
-            intro.Size = new Size(850, 34);
-            intro.ForeColor = Color.FromArgb(72, 72, 72);
-            group.Controls.Add(intro);
+            intro.Text = "Choose the job and LuxBurn will open the matching workspace.";
+            intro.Location = new Point(38, 64);
+            intro.Size = new Size(520, 24);
+            intro.ForeColor = Color.FromArgb(220, 235, 242);
+            intro.BackColor = Color.Transparent;
+            surface.Controls.Add(intro);
 
-            CreateWizardCard(
-                group,
-                18,
-                66,
-                "Data Disc Wizard",
-                "Build a standard data image from a folder, then burn it or save it for later.",
-                "Build image",
-                delegate { StartBuildWizard("DATA_DISC"); },
-                "Burn image",
-                delegate { StartBurnWizard("Data Disc Wizard"); });
-
-            CreateWizardCard(
-                group,
-                462,
-                66,
-                "Audio && Music Wizard",
-                "Copy music files as a data disc, then burn or save the resulting image.",
-                "Music data disc",
-                delegate { StartBuildWizard("MUSIC_DISC"); },
-                "Burn image",
-                delegate { StartBurnWizard("Audio && Music Wizard"); });
-
-            CreateWizardCard(
-                group,
-                18,
-                196,
-                "Video Disc Wizard",
-                "Build an image from a prepared VIDEO_TS, BDMV, or BDAV folder, or burn an existing image.",
-                "Video folder",
-                delegate { StartBuildWizard("VIDEO_DISC"); },
-                "Burn image",
-                delegate { StartBurnWizard("Video Disc Wizard"); });
-
-            CreateWizardCard(
-                group,
-                462,
-                196,
-                "Game Disc Wizard",
-                "Burn or verify an existing game image.",
-                "Burn game image",
-                delegate { StartBurnWizard("Game Disc Wizard"); },
-                "Verify image",
-                delegate { StartVerifyWizard("Game Disc Wizard"); });
-
-            CreateWizardCard(
-                group,
-                18,
-                326,
-                "Copy Disc Wizard",
-                "Copy a standard data disc to an ISO-style image with optional checksum verification.",
-                "Copy disc",
-                delegate { StartCopyWizard(); },
-                "Refresh drives",
-                delegate { RefreshDrives(); _tabs.SelectedIndex = 3; });
-
-            CreateWizardCard(
-                group,
-                462,
-                326,
-                "Blank / Erase Wizard",
-                "Erase rewritable media before burning. CD-R and DVD-R media cannot be erased.",
-                "Erase disc",
-                delegate { _tabs.SelectedIndex = 4; SetStatus("Blank / Erase Wizard opened."); },
-                "Refresh drives",
-                delegate { RefreshDrives(); _tabs.SelectedIndex = 4; });
+            EzModeWheel wheel = new EzModeWheel();
+            wheel.Location = new Point(72, 108);
+            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(32, 0), new Rectangle(74, 72, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
+            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(166, 0), new Rectangle(202, 72, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
+            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(253, 91), new Rectangle(260, 172, 92, 42), delegate { StartCopyWizard(); });
+            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(166, 184), new Rectangle(202, 266, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
+            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(32, 184), new Rectangle(74, 266, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
+            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(0, 91), new Rectangle(12, 172, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            surface.Controls.Add(wheel);
 
             return page;
         }
@@ -691,7 +651,9 @@ namespace LuxBurn
         private TabPage CreatePage(string text)
         {
             TabPage page = new TabPage(text);
-            page.BackColor = Color.FromArgb(240, 240, 236);
+            page.BackColor = Color.FromArgb(35, 58, 70);
+            page.BackgroundImage = LoadUiAsset("LuxburnBG1.png");
+            page.BackgroundImageLayout = ImageLayout.Stretch;
             page.Padding = new Padding(10);
             return page;
         }
@@ -729,11 +691,11 @@ namespace LuxBurn
         {
             OperationButton button = new OperationButton(
                 caption,
-                LoadButtonAsset("ButtonDark.png"),
-                LoadButtonAsset("ButtonLit.png"),
+                LoadUiAsset("but_145x65.png"),
+                LoadUiAsset("but_145x65.png"),
                 LoadButtonAsset(iconName));
-            button.Location = new Point(12, top);
-            button.BackColor = Color.FromArgb(229, 229, 224);
+            button.Location = new Point(34, top);
+            button.BackColor = Color.Transparent;
             return button;
         }
 
@@ -1838,6 +1800,15 @@ namespace LuxBurn
             return File.Exists(path) ? Image.FromFile(path) : null;
         }
 
+        private static Image LoadUiAsset(string fileName)
+        {
+            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Ui", fileName);
+            if (!File.Exists(path))
+                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Ui", fileName);
+
+            return File.Exists(path) ? Image.FromFile(path) : null;
+        }
+
         private static Icon LoadWindowIcon()
         {
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", "LBWindowLogo.ico");
@@ -1872,7 +1843,7 @@ namespace LuxBurn
 
                 TabStop = false;
                 Cursor = Cursors.Hand;
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
             }
 
             protected override void OnMouseEnter(EventArgs e)
@@ -1902,8 +1873,8 @@ namespace LuxBurn
 
             private static Image ComposeButton(Image background, Image icon, string caption, Font font)
             {
-                int width = background == null ? 209 : background.Width / 2;
-                int height = background == null ? 32 : background.Height / 2;
+                int width = background == null ? 145 : background.Width;
+                int height = background == null ? 65 : background.Height;
                 Bitmap composed = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
 
                 using (Graphics graphics = Graphics.FromImage(composed))
@@ -1917,7 +1888,7 @@ namespace LuxBurn
 
                     if (icon != null)
                     {
-                        Rectangle iconRect = FitIcon(icon, new Rectangle(5, 4, 24, 24));
+                        Rectangle iconRect = FitIcon(icon, new Rectangle(13, 16, 30, 30));
                         graphics.DrawImage(icon, iconRect);
                     }
 
@@ -1925,7 +1896,15 @@ namespace LuxBurn
                         graphics,
                         caption,
                         font,
-                        new Rectangle(46, 0, width - 50, height),
+                        new Rectangle(54, 1, width - 58, height),
+                        Color.Black,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
+                    TextRenderer.DrawText(
+                        graphics,
+                        caption,
+                        font,
+                        new Rectangle(53, 0, width - 58, height),
                         Color.White,
                         TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                 }
@@ -1941,6 +1920,135 @@ namespace LuxBurn
                 int x = bounds.Left + (bounds.Width - width) / 2;
                 int y = bounds.Top + (bounds.Height - height) / 2;
                 return new Rectangle(x, y, width, height);
+            }
+        }
+
+        private sealed class EzModeWheel : Control
+        {
+            private readonly List<Slice> _slices = new List<Slice>();
+            private int _hoverIndex = -1;
+
+            public EzModeWheel()
+            {
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                Size = new Size(410, 360);
+                Cursor = Cursors.Hand;
+                TabStop = false;
+                BackColor = Color.Transparent;
+            }
+
+            public void AddSlice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Rectangle labelBounds, EventHandler click)
+            {
+                _slices.Add(new Slice(title, subtitle, normalImage, hoverImage ?? normalImage, imageLocation, labelBounds, click));
+            }
+
+            protected override void OnMouseMove(MouseEventArgs e)
+            {
+                int index = HitTest(e.Location);
+                if (_hoverIndex != index)
+                {
+                    _hoverIndex = index;
+                    Invalidate();
+                }
+
+                base.OnMouseMove(e);
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                if (_hoverIndex != -1)
+                {
+                    _hoverIndex = -1;
+                    Invalidate();
+                }
+
+                base.OnMouseLeave(e);
+            }
+
+            protected override void OnClick(EventArgs e)
+            {
+                if (_hoverIndex >= 0 && _hoverIndex < _slices.Count && _slices[_hoverIndex].Click != null)
+                    _slices[_hoverIndex].Click(this, e);
+
+                base.OnClick(e);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+                e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+
+                for (int i = 0; i < _slices.Count; i++)
+                {
+                    Slice slice = _slices[i];
+                    Image image = i == _hoverIndex && slice.HoverImage != null ? slice.HoverImage : slice.NormalImage;
+                    if (image != null)
+                        e.Graphics.DrawImageUnscaled(image, slice.ImageLocation);
+                }
+
+                using (Font titleFont = new Font("Tahoma", 10f, FontStyle.Bold))
+                using (Font subtitleFont = new Font("Tahoma", 8.25f))
+                {
+                    for (int i = 0; i < _slices.Count; i++)
+                    {
+                        Slice slice = _slices[i];
+                        Color titleColor = i == _hoverIndex ? Color.White : Color.FromArgb(232, 244, 248);
+                        Color subtitleColor = i == _hoverIndex ? Color.White : Color.FromArgb(205, 226, 235);
+                        DrawOutlinedText(e.Graphics, slice.Title, titleFont, slice.LabelBounds, titleColor);
+                        DrawOutlinedText(e.Graphics, slice.Subtitle, subtitleFont, new Rectangle(slice.LabelBounds.X, slice.LabelBounds.Y + 22, slice.LabelBounds.Width, 20), subtitleColor);
+                    }
+                }
+            }
+
+            private int HitTest(Point point)
+            {
+                for (int i = _slices.Count - 1; i >= 0; i--)
+                {
+                    Slice slice = _slices[i];
+                    Image image = slice.HoverImage ?? slice.NormalImage;
+                    if (image == null)
+                        continue;
+
+                    int localX = point.X - slice.ImageLocation.X;
+                    int localY = point.Y - slice.ImageLocation.Y;
+                    if (localX < 0 || localY < 0 || localX >= image.Width || localY >= image.Height)
+                        continue;
+
+                    Bitmap bitmap = image as Bitmap;
+                    if (bitmap == null || bitmap.GetPixel(localX, localY).A > 32)
+                        return i;
+                }
+
+                return -1;
+            }
+
+            private static void DrawOutlinedText(Graphics graphics, string text, Font font, Rectangle bounds, Color color)
+            {
+                TextRenderer.DrawText(graphics, text, font, new Rectangle(bounds.X + 1, bounds.Y + 1, bounds.Width, bounds.Height), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(graphics, text, font, bounds, color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+
+            private sealed class Slice
+            {
+                public readonly string Title;
+                public readonly string Subtitle;
+                public readonly Image NormalImage;
+                public readonly Image HoverImage;
+                public readonly Point ImageLocation;
+                public readonly Rectangle LabelBounds;
+                public readonly EventHandler Click;
+
+                public Slice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Rectangle labelBounds, EventHandler click)
+                {
+                    Title = title;
+                    Subtitle = subtitle;
+                    NormalImage = normalImage;
+                    HoverImage = hoverImage;
+                    ImageLocation = imageLocation;
+                    LabelBounds = labelBounds;
+                    Click = click;
+                }
             }
         }
 
