@@ -685,12 +685,12 @@ namespace LuxBurn
 
             EzModeWheel wheel = new EzModeWheel();
             wheel.Location = new Point(72, 108);
-            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), new Rectangle(98, 121, 92, 42), delegate { StartBuildWizard("DATA_DISC"); });
-            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), new Rectangle(210, 121, 92, 42), delegate { StartBurnWizard("EZ Mode"); });
-            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(245, 94), new Rectangle(296, 184, 92, 42), delegate { StartCopyWizard(); });
-            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(197, 219), new Rectangle(196, 271, 92, 42), delegate { StartVerifyWizard("EZ Mode"); });
-            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(30, 219), new Rectangle(112, 271, 92, 42), delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
-            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), new Rectangle(12, 184, 92, 42), delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), LoadButtonAsset("145_add.png"), new Point(96, 22), 120, new Rectangle(92, 85, 92, 42), 100, delegate { StartBuildWizard("DATA_DISC"); });
+            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), LoadButtonAsset("139-Edit.png"), new Point(220, 22), 124, new Rectangle(216, 85, 92, 42), 100, delegate { StartBurnWizard("EZ Mode"); });
+            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(245, 94), LoadButtonAsset("COPY_CUSTOM.png"), new Point(291, 144), 110, new Rectangle(284, 197, 92, 42), 100, delegate { StartCopyWizard(); });
+            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(197, 219), LoadButtonAsset("6-ApplyButton.png"), new Point(221, 256), 131, new Rectangle(217, 312, 92, 42), 100, delegate { StartVerifyWizard("EZ Mode"); });
+            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(30, 219), LoadButtonAsset("18_delete.png"), new Point(101, 262), 100, new Rectangle(95, 312, 92, 42), 100, delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
+            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), LoadButtonAsset("Drives.png"), new Point(37, 150), 54, new Rectangle(24, 197, 92, 42), 100, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
             surface.Controls.Add(wheel);
 
             return page;
@@ -1999,9 +1999,9 @@ namespace LuxBurn
                 BackColor = Color.Transparent;
             }
 
-            public void AddSlice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Rectangle labelBounds, EventHandler click)
+            public void AddSlice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Image iconImage, Point iconLocation, int iconScale, Rectangle labelBounds, int textScale, EventHandler click)
             {
-                _slices.Add(new Slice(title, subtitle, normalImage, hoverImage ?? normalImage, imageLocation, labelBounds, click));
+                _slices.Add(new Slice(title, subtitle, normalImage, hoverImage ?? normalImage, imageLocation, iconImage, iconLocation, iconScale, labelBounds, textScale, click));
             }
 
             protected override void OnMouseMove(MouseEventArgs e)
@@ -2049,12 +2049,16 @@ namespace LuxBurn
                         e.Graphics.DrawImageUnscaled(image, slice.ImageLocation);
                 }
 
-                using (Font titleFont = new Font("Tahoma", 10f, FontStyle.Bold))
-                using (Font subtitleFont = new Font("Tahoma", 8.25f))
+                for (int i = 0; i < _slices.Count; i++)
                 {
-                    for (int i = 0; i < _slices.Count; i++)
+                    Slice slice = _slices[i];
+                    if (slice.IconImage != null)
+                        DrawScaledImage(e.Graphics, slice.IconImage, slice.IconLocation, slice.IconScale);
+
+                    float textScale = Math.Max(50, Math.Min(180, slice.TextScale)) / 100f;
+                    using (Font titleFont = new Font("Tahoma", 10f * textScale, FontStyle.Bold))
+                    using (Font subtitleFont = new Font("Tahoma", 8.25f * textScale))
                     {
-                        Slice slice = _slices[i];
                         Color titleColor = i == _hoverIndex ? Color.White : Color.FromArgb(232, 244, 248);
                         Color subtitleColor = i == _hoverIndex ? Color.White : Color.FromArgb(205, 226, 235);
                         DrawOutlinedText(e.Graphics, slice.Title, titleFont, slice.LabelBounds, titleColor);
@@ -2091,6 +2095,14 @@ namespace LuxBurn
                 TextRenderer.DrawText(graphics, text, font, bounds, color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             }
 
+            private static void DrawScaledImage(Graphics graphics, Image image, Point location, int scale)
+            {
+                int clampedScale = Math.Max(10, Math.Min(200, scale));
+                int width = Math.Max(1, (int)Math.Round(image.Width * clampedScale / 100.0));
+                int height = Math.Max(1, (int)Math.Round(image.Height * clampedScale / 100.0));
+                graphics.DrawImage(image, new Rectangle(location.X, location.Y, width, height), new Rectangle(0, 0, image.Width, image.Height), GraphicsUnit.Pixel);
+            }
+
             private sealed class Slice
             {
                 public readonly string Title;
@@ -2098,17 +2110,25 @@ namespace LuxBurn
                 public readonly Image NormalImage;
                 public readonly Image HoverImage;
                 public readonly Point ImageLocation;
+                public readonly Image IconImage;
+                public readonly Point IconLocation;
+                public readonly int IconScale;
                 public readonly Rectangle LabelBounds;
+                public readonly int TextScale;
                 public readonly EventHandler Click;
 
-                public Slice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Rectangle labelBounds, EventHandler click)
+                public Slice(string title, string subtitle, Image normalImage, Image hoverImage, Point imageLocation, Image iconImage, Point iconLocation, int iconScale, Rectangle labelBounds, int textScale, EventHandler click)
                 {
                     Title = title;
                     Subtitle = subtitle;
                     NormalImage = normalImage;
                     HoverImage = hoverImage;
                     ImageLocation = imageLocation;
+                    IconImage = iconImage;
+                    IconLocation = iconLocation;
+                    IconScale = iconScale;
                     LabelBounds = labelBounds;
+                    TextScale = textScale;
                     Click = click;
                 }
             }
