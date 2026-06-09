@@ -40,6 +40,21 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 
 ## Launch
 
+Download the newest build without typing anything:
+
+| Package | Link |
+|:--|:--|
+| Installer | [Download LuxBurn-v1.4-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.4-setup.exe) |
+| Portable | [Download LuxBurn-v1.4-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.4-portable.zip) |
+
+The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
+
+To build packages locally without typing commands, double-click:
+
+```cmd
+Build Packages.cmd
+```
+
 Build LuxBurn:
 
 ```cmd
@@ -75,7 +90,7 @@ dist\LuxBurn-v1.4-setup.exe
 
 The portable package runs anywhere after extraction. The setup package installs LuxBurn for the current Windows user and creates Start Menu and Desktop shortcuts.
 
-GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source.
+GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source. The latest successful `main` build is also published to the [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest) release, and the direct download links above always point to that latest build.
 
 ## Notes
 
