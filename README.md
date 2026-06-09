@@ -2,7 +2,7 @@
 
 <img src="OpenBurningSuite.Xp/Assets/Brand/LuxburnLarge.png" alt="LuxBurn" width="640">
 
-# LuxBurn
+# LuxBurn [Indev.]
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.4.0-blue)]()
