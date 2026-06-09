@@ -2,6 +2,7 @@ bin/
 obj/
 .vs/
 build/package/
+build/tools/
 dist/
 LuxBurn-v*.zip
 LuxBurn-v*-setup.exe

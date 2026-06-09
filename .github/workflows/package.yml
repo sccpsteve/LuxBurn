@@ -56,7 +56,33 @@ jobs:
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release edit $tag --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
-            gh release upload $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
+            gh release create $tag dist\LuxBurn-v1.4-portable.zip dist\LuxBurn-v1.4-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
+          }
+
+      - name: Verify public download links
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $urls = @(
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.4-setup.exe",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.4-portable.zip",
+            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-update.json"
+          )
+
+          foreach ($url in $urls) {
+            $ok = $false
+            for ($try = 1; $try -le 12; $try++) {
+              & curl.exe --fail --location --silent --head $url | Out-Null
+              if ($LASTEXITCODE -eq 0) {
+                $ok = $true
+                break
+              }
+              Start-Sleep -Seconds 5
+            }
+
+            if (-not $ok) {
+              throw "Download link did not become available: $url"
+            }
           }

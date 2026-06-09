@@ -32,6 +32,7 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 | Media checks | Detects blank, non-empty, finalized, non-erasable, and oversized discs before writing. |
 | Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
 | EZ Mode | Starts on a visual task picker for build, write, copy, erase, verify, and drive inspection workflows. |
+| Updates | Checks the latest LuxBurn release manifest and offers update, skip, or 7-day reminder choices. |
 | Interface | Uses LuxBurn pane backgrounds and TCC-inspired button/picker assets. |
 | Progress | Shows write progress, buffer, and device buffer. |
 | Abort handling | Aborts backend burns and asks before closing during an active burn. |
@@ -88,7 +89,7 @@ dist\LuxBurn-v1.4-portable.zip
 dist\LuxBurn-v1.4-setup.exe
 ```
 
-The portable package runs anywhere after extraction. The setup package installs LuxBurn for the current Windows user and creates Start Menu and Desktop shortcuts.
+The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
 
 GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source. The latest successful `main` build is also published to the [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest) release, and the direct download links above always point to that latest build.
 

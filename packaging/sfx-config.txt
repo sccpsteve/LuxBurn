@@ -1,6 +1,0 @@
-;!@Install@!UTF-8!
-Title="LuxBurn Setup"
-BeginPrompt="Install LuxBurn for this Windows user?"
-RunProgram="install.cmd"
-GUIMode="1"
-;!@InstallEnd@!

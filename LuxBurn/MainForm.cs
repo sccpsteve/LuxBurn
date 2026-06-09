@@ -4,10 +4,14 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using LuxBurn.Services;
@@ -17,6 +21,7 @@ namespace LuxBurn
     internal sealed class MainForm : Form
     {
         private const int OperationRailWidth = 252;
+        private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
 
@@ -101,6 +106,7 @@ namespace LuxBurn
             RefreshComponentStatus();
             RefreshDrives();
             FormClosing += MainFormFormClosing;
+            Shown += delegate { BeginInvoke(new MethodInvoker(delegate { CheckForUpdates(false); })); };
         }
 
         private void BuildInterface()
@@ -226,6 +232,10 @@ namespace LuxBurn
             tools.DropDownItems.Add(new ToolStripSeparator());
             tools.DropDownItems.Add("Settings...", null, delegate { ShowSettingsDialog(); });
             menu.Items.Add(tools);
+
+            ToolStripMenuItem help = new ToolStripMenuItem("Help");
+            help.DropDownItems.Add("Check for Updates...", null, delegate { CheckForUpdates(true); });
+            menu.Items.Add(help);
 
             return menu;
         }
@@ -1887,6 +1897,99 @@ namespace LuxBurn
             }
         }
 
+        private sealed class UpdateInfo
+        {
+            public string LatestVersion;
+            public string InstallerUrl;
+            public string PortableUrl;
+            public string ReleasePageUrl;
+
+            public static UpdateInfo FromJson(string json)
+            {
+                UpdateInfo info = new UpdateInfo();
+                info.LatestVersion = ReadJsonString(json, "latestVersion");
+                info.InstallerUrl = ReadJsonString(json, "installerUrl");
+                info.PortableUrl = ReadJsonString(json, "portableUrl");
+                info.ReleasePageUrl = ReadJsonString(json, "releasePageUrl");
+                return info;
+            }
+
+            private static string ReadJsonString(string json, string name)
+            {
+                if (string.IsNullOrEmpty(json))
+                    return string.Empty;
+
+                Match match = Regex.Match(json, "\"" + Regex.Escape(name) + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
+                return match.Success ? UnescapeJson(match.Groups[1].Value) : string.Empty;
+            }
+
+            private static string UnescapeJson(string value)
+            {
+                if (string.IsNullOrEmpty(value))
+                    return string.Empty;
+
+                return value
+                    .Replace("\\/", "/")
+                    .Replace("\\\"", "\"")
+                    .Replace("\\\\", "\\")
+                    .Replace("\\n", "\n")
+                    .Replace("\\r", "\r")
+                    .Replace("\\t", "\t");
+            }
+        }
+
+        private sealed class UpdateDialog : Form
+        {
+            public UpdateDialog(string runningVersion, string latestVersion)
+            {
+                Text = "LuxBurn";
+                StartPosition = FormStartPosition.CenterParent;
+                FormBorderStyle = FormBorderStyle.FixedDialog;
+                MaximizeBox = false;
+                MinimizeBox = false;
+                ShowInTaskbar = false;
+                ClientSize = new Size(390, 164);
+                Font = new Font("Tahoma", 8.25f);
+
+                Label heading = new Label();
+                heading.Text = "LuxBurn is out of date!";
+                heading.Font = new Font("Tahoma", 10f, FontStyle.Bold);
+                heading.Location = new Point(14, 14);
+                heading.Size = new Size(360, 24);
+                Controls.Add(heading);
+
+                Label body = new Label();
+                body.Text = "You're running " + runningVersion + ". The latest version" + Environment.NewLine + "is " + latestVersion + ". Would you like to update now?";
+                body.Location = new Point(14, 50);
+                body.Size = new Size(360, 42);
+                Controls.Add(body);
+
+                Button update = new Button();
+                update.Text = "Update";
+                update.DialogResult = DialogResult.Yes;
+                update.Location = new Point(72, 116);
+                update.Size = new Size(78, 27);
+                Controls.Add(update);
+
+                Button no = new Button();
+                no.Text = "No";
+                no.DialogResult = DialogResult.No;
+                no.Location = new Point(156, 116);
+                no.Size = new Size(70, 27);
+                Controls.Add(no);
+
+                Button remind = new Button();
+                remind.Text = "Remind me in 7 days";
+                remind.DialogResult = DialogResult.Retry;
+                remind.Location = new Point(232, 116);
+                remind.Size = new Size(134, 27);
+                Controls.Add(remind);
+
+                AcceptButton = update;
+                CancelButton = no;
+            }
+        }
+
         private sealed class OperationButton : Control
         {
             private readonly Image _normalImage;
@@ -2602,6 +2705,211 @@ namespace LuxBurn
             ToolStripStatusLabel status = _statusLabel.Tag as ToolStripStatusLabel;
             if (status != null)
                 status.Text = text;
+        }
+
+        private void CheckForUpdates(bool manual)
+        {
+            if (!manual && DateTime.UtcNow < GetUpdateReminderDate())
+                return;
+
+            SetStatus("Checking for updates...");
+            BackgroundWorker worker = new BackgroundWorker();
+            worker.DoWork += delegate(object sender, DoWorkEventArgs e)
+            {
+                e.Result = DownloadUpdateInfo();
+            };
+            worker.RunWorkerCompleted += delegate(object sender, RunWorkerCompletedEventArgs e)
+            {
+                if (e.Error != null)
+                {
+                    SetStatus("Ready");
+                    Log("Update check failed: " + e.Error.Message);
+                    if (manual)
+                        MessageBox.Show(this, "Could not check for updates." + Environment.NewLine + e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                UpdateInfo update = e.Result as UpdateInfo;
+                if (update == null || string.IsNullOrEmpty(update.LatestVersion))
+                {
+                    SetStatus("Ready");
+                    if (manual)
+                        MessageBox.Show(this, "No update information was found.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                Version running = GetRunningVersion();
+                Version latest = ParseVersion(update.LatestVersion);
+                if (latest.CompareTo(running) <= 0)
+                {
+                    SetStatus("LuxBurn is up to date.");
+                    if (manual)
+                        MessageBox.Show(this, "LuxBurn is up to date." + Environment.NewLine + "You're running " + FormatVersion(running) + ".", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                SetStatus("Update available.");
+                ShowUpdatePrompt(update, running, latest);
+            };
+            worker.RunWorkerAsync();
+        }
+
+        private UpdateInfo DownloadUpdateInfo()
+        {
+            ConfigureUpdateSecurity();
+            using (WebClient client = new WebClient())
+            {
+                client.Headers.Add("User-Agent", "LuxBurn/" + FormatVersion(GetRunningVersion()));
+                string json = client.DownloadString(UpdateManifestUrl);
+                return UpdateInfo.FromJson(json);
+            }
+        }
+
+        private void ShowUpdatePrompt(UpdateInfo update, Version running, Version latest)
+        {
+            using (UpdateDialog dialog = new UpdateDialog(FormatVersion(running), FormatVersion(latest)))
+            {
+                DialogResult result = dialog.ShowDialog(this);
+                if (result == DialogResult.Yes)
+                    DownloadAndLaunchUpdate(update);
+                else if (result == DialogResult.Retry)
+                    SaveUpdateReminder(DateTime.UtcNow.AddDays(7));
+                else
+                    SetStatus("Ready");
+            }
+        }
+
+        private void DownloadAndLaunchUpdate(UpdateInfo update)
+        {
+            if (_burnInProgress)
+            {
+                MessageBox.Show(this, "A disc operation is in progress. Finish or cancel it before updating.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string installerUrl = string.IsNullOrEmpty(update.InstallerUrl) ? "https://github.com/sccpsteve/LuxBurn/releases/tag/latest" : update.InstallerUrl;
+            string tempPath = Path.Combine(Path.GetTempPath(), "LuxBurn-v" + CleanFileVersion(update.LatestVersion) + "-setup.exe");
+
+            try
+            {
+                ConfigureUpdateSecurity();
+                SetStatus("Downloading update...");
+                Cursor previousCursor = Cursor.Current;
+                Cursor.Current = Cursors.WaitCursor;
+                try
+                {
+                    using (WebClient client = new WebClient())
+                    {
+                        client.Headers.Add("User-Agent", "LuxBurn/" + FormatVersion(GetRunningVersion()));
+                        client.DownloadFile(installerUrl, tempPath);
+                    }
+                }
+                finally
+                {
+                    Cursor.Current = previousCursor;
+                }
+
+                Process.Start(tempPath);
+                Close();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Ready");
+                Log("Update download failed: " + ex.Message);
+                if (MessageBox.Show(this, "Could not download the installer automatically. Open the download page instead?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Error) == DialogResult.Yes)
+                    Process.Start(string.IsNullOrEmpty(update.ReleasePageUrl) ? installerUrl : update.ReleasePageUrl);
+            }
+        }
+
+        private static void ConfigureUpdateSecurity()
+        {
+            try
+            {
+                ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | (SecurityProtocolType)768 | (SecurityProtocolType)3072;
+            }
+            catch
+            {
+            }
+        }
+
+        private static Version GetRunningVersion()
+        {
+            Version version = Assembly.GetExecutingAssembly().GetName().Version;
+            return version == null ? new Version(0, 0) : version;
+        }
+
+        private static Version ParseVersion(string value)
+        {
+            string text = (value ?? string.Empty).Trim();
+            if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                text = text.Substring(1);
+
+            Match match = Regex.Match(text, @"\d+(\.\d+){0,3}");
+            if (!match.Success)
+                return new Version(0, 0);
+
+            string[] parts = match.Value.Split('.');
+            while (parts.Length < 2)
+                parts = new string[] { parts[0], "0" };
+
+            return new Version(string.Join(".", parts));
+        }
+
+        private static string FormatVersion(Version version)
+        {
+            if (version == null)
+                return "0.0";
+            if (version.Build > 0 || version.Revision > 0)
+                return version.Major + "." + version.Minor + "." + Math.Max(0, version.Build);
+            return version.Major + "." + version.Minor;
+        }
+
+        private static string CleanFileVersion(string version)
+        {
+            return Regex.Replace(version ?? "update", @"[^0-9A-Za-z_.-]", string.Empty);
+        }
+
+        private static DateTime GetUpdateReminderDate()
+        {
+            try
+            {
+                string path = GetUpdateReminderPath();
+                if (!File.Exists(path))
+                    return DateTime.MinValue;
+
+                string text = File.ReadAllText(path).Trim();
+                long ticks;
+                if (long.TryParse(text, out ticks))
+                    return new DateTime(ticks, DateTimeKind.Utc);
+            }
+            catch
+            {
+            }
+
+            return DateTime.MinValue;
+        }
+
+        private static void SaveUpdateReminder(DateTime date)
+        {
+            try
+            {
+                string path = GetUpdateReminderPath();
+                string directory = Path.GetDirectoryName(path);
+                if (!Directory.Exists(directory))
+                    Directory.CreateDirectory(directory);
+                File.WriteAllText(path, date.ToUniversalTime().Ticks.ToString());
+            }
+            catch
+            {
+            }
+        }
+
+        private static string GetUpdateReminderPath()
+        {
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (string.IsNullOrEmpty(appData))
+                appData = AppDomain.CurrentDomain.BaseDirectory;
+            return Path.Combine(Path.Combine(appData, "LuxBurn"), "update-reminder.txt");
         }
 
         private void Log(string message)

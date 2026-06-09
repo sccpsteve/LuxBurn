@@ -11,8 +11,11 @@ set "DIST=%ROOT%\dist"
 set "WORK=%ROOT%\build\package"
 set "PORTABLE=%DIST%\%APP_NAME%-v%APP_VERSION%-portable.zip"
 set "INSTALLER=%DIST%\%APP_NAME%-v%APP_VERSION%-setup.exe"
+set "UPDATE_MANIFEST=%DIST%\%APP_NAME%-update.json"
+set "INNO_DIR=%ROOT%\build\tools\InnoSetup5"
+set "INNO_SETUP=%ROOT%\build\tools\innosetup-5.6.1-unicode.exe"
+set "ISCC="
 set "SEVENZIP="
-set "SFX="
 
 call "%ROOT%\build-xp.cmd"
 if errorlevel 1 exit /b 1
@@ -24,8 +27,9 @@ mkdir "%WORK%" || exit /b 1
 
 if exist "%ProgramFiles%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles%\7-Zip\7z.exe"
 if exist "%ProgramFiles(x86)%\7-Zip\7z.exe" set "SEVENZIP=%ProgramFiles(x86)%\7-Zip\7z.exe"
-if exist "%ProgramFiles%\7-Zip\7z.sfx" set "SFX=%ProgramFiles%\7-Zip\7z.sfx"
-if exist "%ProgramFiles(x86)%\7-Zip\7z.sfx" set "SFX=%ProgramFiles(x86)%\7-Zip\7z.sfx"
+if exist "%ProgramFiles%\Inno Setup 5\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 5\ISCC.exe"
+if exist "%ProgramFiles(x86)%\Inno Setup 5\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 5\ISCC.exe"
+if exist "%INNO_DIR%\ISCC.exe" set "ISCC=%INNO_DIR%\ISCC.exe"
 
 if not defined SEVENZIP (
     echo 7-Zip was not found. Install 7-Zip to create release packages.
@@ -39,24 +43,34 @@ popd
 if errorlevel 1 exit /b 1
 
 echo Creating installer package...
-if not defined SFX (
-    echo 7-Zip SFX module was not found. Portable package was created, but installer package was not.
+if not defined ISCC (
+    echo Inno Setup 5.6.1 compiler was not found. Downloading it now...
+    if not exist "%ROOT%\build\tools" mkdir "%ROOT%\build\tools"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri 'https://files.jrsoftware.org/is/5/innosetup-5.6.1-unicode.exe' -OutFile '%INNO_SETUP%'"
+    if errorlevel 1 exit /b 1
+
+    "%INNO_SETUP%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="%INNO_DIR%"
+    if errorlevel 1 exit /b 1
+    if exist "%INNO_DIR%\ISCC.exe" set "ISCC=%INNO_DIR%\ISCC.exe"
+)
+
+if not defined ISCC (
+    echo Inno Setup compiler was not found after installation.
     exit /b 1
 )
 
-mkdir "%WORK%\installer\App" || exit /b 1
-xcopy "%RELEASE%" "%WORK%\installer\App\" /E /I /Y >nul
-copy "%ROOT%\packaging\install.cmd" "%WORK%\installer\install.cmd" >nul
-copy "%ROOT%\packaging\uninstall.cmd" "%WORK%\installer\uninstall.cmd" >nul
-
-pushd "%WORK%\installer"
-"%SEVENZIP%" a -t7z -mx=9 "%WORK%\payload.7z" * >nul
-popd
+"%ISCC%" "%ROOT%\packaging\LuxBurn.iss"
 if errorlevel 1 exit /b 1
 
-copy /b "%SFX%" + "%ROOT%\packaging\sfx-config.txt" + "%WORK%\payload.7z" "%INSTALLER%" >nul
-if errorlevel 1 exit /b 1
+echo Creating update manifest...
+> "%UPDATE_MANIFEST%" echo {
+>> "%UPDATE_MANIFEST%" echo   "latestVersion": "%APP_VERSION%",
+>> "%UPDATE_MANIFEST%" echo   "installerUrl": "https://github.com/sccpsteve/LuxBurn/releases/download/latest/%APP_NAME%-v%APP_VERSION%-setup.exe",
+>> "%UPDATE_MANIFEST%" echo   "portableUrl": "https://github.com/sccpsteve/LuxBurn/releases/download/latest/%APP_NAME%-v%APP_VERSION%-portable.zip",
+>> "%UPDATE_MANIFEST%" echo   "releasePageUrl": "https://github.com/sccpsteve/LuxBurn/releases/tag/latest"
+>> "%UPDATE_MANIFEST%" echo }
 
 echo Portable:  %PORTABLE%
 echo Installer: %INSTALLER%
+echo Update manifest: %UPDATE_MANIFEST%
 exit /b 0
