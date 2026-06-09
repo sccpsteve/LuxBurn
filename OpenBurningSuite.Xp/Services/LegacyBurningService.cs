@@ -384,6 +384,38 @@ namespace OpenBurningSuite.Xp.Services
             Log(log, string.Format("Copied image size: {0:N0} bytes.", image.Length));
         }
 
+        public string CaptureDriveCommand(string recorderId, string command, Action<string> log)
+        {
+            string cdrecordPath = FindCdrecordPath();
+            if (string.IsNullOrEmpty(cdrecordPath))
+                throw new InvalidOperationException("cdrecord.exe was not found. Put the cdrtools folder next to LuxBurn.");
+
+            DiscRecorderInfo recorder = FindRecorder(recorderId);
+            string device = FindCdrecordDevice(cdrecordPath, recorder, log);
+            if (string.IsNullOrEmpty(device))
+                throw new InvalidOperationException("LuxBurn could not determine a cdrecord SPTI device address.");
+
+            string args = "dev=" + device + " " + command;
+            Log(log, "Running cdrecord command: cdrecord.exe " + args);
+            return CaptureProcessOutput(cdrecordPath, args);
+        }
+
+        public void RunDriveCommand(string recorderId, string command, Action<string> log, CancellationToken cancellationToken)
+        {
+            string cdrecordPath = FindCdrecordPath();
+            if (string.IsNullOrEmpty(cdrecordPath))
+                throw new InvalidOperationException("cdrecord.exe was not found. Put the cdrtools folder next to LuxBurn.");
+
+            DiscRecorderInfo recorder = FindRecorder(recorderId);
+            string device = FindCdrecordDevice(cdrecordPath, recorder, log);
+            if (string.IsNullOrEmpty(device))
+                throw new InvalidOperationException("LuxBurn could not determine a cdrecord SPTI device address.");
+
+            string args = "dev=" + device + " " + command;
+            Log(log, "Running cdrecord command: cdrecord.exe " + args);
+            RunProcessAndLog(cdrecordPath, args, log, null, cancellationToken);
+        }
+
         private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
             string cdrecordPath = FindCdrecordPath();

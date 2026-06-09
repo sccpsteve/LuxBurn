@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using OpenBurningSuite.Xp.Services;
@@ -25,6 +26,29 @@ namespace OpenBurningSuite.Xp
         private TextBox _buildSourceText;
         private TextBox _buildOutputText;
         private TextBox _volumeNameText;
+        private ListView _buildItemList;
+        private Label _buildFileCountLabel;
+        private Label _buildFolderCountLabel;
+        private Label _buildTotalSizeLabel;
+        private Label _buildImageSizeLabel;
+        private ComboBox _buildDataTypeCombo;
+        private ComboBox _buildFileSystemCombo;
+        private ComboBox _buildUdfRevisionCombo;
+        private CheckBox _preservePathsCheck;
+        private CheckBox _recurseSubdirectoriesCheck;
+        private CheckBox _includeHiddenFilesCheck;
+        private CheckBox _includeSystemFilesCheck;
+        private CheckBox _includeArchiveOnlyCheck;
+        private CheckBox _clearArchiveAttributeCheck;
+        private TextBox _iso9660LabelText;
+        private TextBox _jolietLabelText;
+        private TextBox _udfLabelText;
+        private CheckBox _syncLabelsCheck;
+        private TextBox _systemIdentifierText;
+        private TextBox _volumeSetText;
+        private TextBox _publisherText;
+        private TextBox _dataPreparerText;
+        private TextBox _applicationIdentifierText;
         private TextBox _burnImageText;
         private TextBox _copyOutputText;
         private TextBox _verifyFileText;
@@ -53,6 +77,7 @@ namespace OpenBurningSuite.Xp
         private NeutralProgressBar _deviceBufferProgress;
         private NeutralProgressBar _copyProgress;
         private TabControl _tabs;
+        private string _projectPath;
         private CancellationTokenSource _burnCancellation;
         private bool _burnInProgress;
 
@@ -73,6 +98,10 @@ namespace OpenBurningSuite.Xp
 
         private void BuildInterface()
         {
+            MenuStrip menu = CreateMainMenu();
+            MainMenuStrip = menu;
+            Controls.Add(menu);
+
             Panel header = new Panel();
             header.Dock = DockStyle.Top;
             header.Height = 66;
@@ -122,6 +151,98 @@ namespace OpenBurningSuite.Xp
 
             BuildLeftPanel(split.Panel1);
             BuildTabs(split.Panel2);
+        }
+
+        private MenuStrip CreateMainMenu()
+        {
+            MenuStrip menu = new MenuStrip();
+            menu.Dock = DockStyle.Top;
+
+            ToolStripMenuItem file = new ToolStripMenuItem("File");
+            file.DropDownItems.Add("Browse for a source file...", null, delegate { BrowseBuildSourceFile(); });
+            file.DropDownItems.Add("Browse for a source folder...", null, delegate { BrowseBuildSourceFolder(); });
+            file.DropDownItems.Add("Remove all items", null, delegate { ClearBuildItems(); });
+            file.DropDownItems.Add(new ToolStripSeparator());
+            file.DropDownItems.Add("Calculate", null, delegate { CalculateBuildImageInformation(); });
+            file.DropDownItems.Add("Write", null, delegate { _tabs.SelectedIndex = 2; BurnImage(); });
+            file.DropDownItems.Add(new ToolStripSeparator());
+            file.DropDownItems.Add("New Project", null, delegate { NewProject(); });
+            file.DropDownItems.Add("Load Most Recent Project", null, delegate { LoadMostRecentProject(); });
+            file.DropDownItems.Add("Load Project...", null, delegate { LoadProject(); });
+            file.DropDownItems.Add("Save Project...", null, delegate { SaveProject(); });
+            file.DropDownItems.Add(new ToolStripSeparator());
+            file.DropDownItems.Add("Export Graph Data...", null, delegate { ExportGraphData(); });
+            file.DropDownItems.Add("Display Graph Data...", null, delegate { DisplayGraphData(); });
+            file.DropDownItems.Add(new ToolStripSeparator());
+            file.DropDownItems.Add("Exit", null, delegate { Close(); });
+            menu.Items.Add(file);
+
+            ToolStripMenuItem tools = new ToolStripMenuItem("Tools");
+            ToolStripMenuItem iso = new ToolStripMenuItem("ISO");
+            iso.DropDownItems.Add("Change Volume Label...", null, delegate { _tabs.SelectedIndex = 1; FocusVolumeLabels(); });
+            iso.DropDownItems.Add("Display IFO Layer Break Information...", null, delegate { ShowLayerBreakInformation(); });
+            tools.DropDownItems.Add(iso);
+
+            ToolStripMenuItem drive = new ToolStripMenuItem("Drive");
+            drive.DropDownItems.Add("Refresh", null, delegate { RefreshDrives(); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("ReZero", null, delegate { RunSelectedDriveCommand("-reset", "ReZero"); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Load", null, delegate { RunSelectedDriveCommand("-load", "Load tray"); });
+            drive.DropDownItems.Add("Eject", null, delegate { EjectSelectedDrive(); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Lock Tray", null, delegate { RunSelectedDriveCommand("-lock", "Lock tray"); });
+            drive.DropDownItems.Add("Unlock Tray", null, delegate { RunSelectedDriveCommand("-load", "Unlock tray"); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Send BurnerMAX Payload", null, delegate { ShowDriveCommandNotice("BurnerMAX payload"); });
+            ToolStripMenuItem readSpeed = new ToolStripMenuItem("Set Read Speed");
+            readSpeed.DropDownItems.Add("MAX", null, delegate { ShowDriveCommandNotice("Set read speed to MAX"); });
+            readSpeed.DropDownItems.Add("8x", null, delegate { ShowDriveCommandNotice("Set read speed to 8x"); });
+            readSpeed.DropDownItems.Add("4x", null, delegate { ShowDriveCommandNotice("Set read speed to 4x"); });
+            drive.DropDownItems.Add(readSpeed);
+            ToolStripMenuItem eraseDisc = new ToolStripMenuItem("Erase Disc");
+            eraseDisc.DropDownItems.Add("Quick", null, delegate { _fullEraseCheck.Checked = false; _tabs.SelectedIndex = 4; EraseDisc(); });
+            eraseDisc.DropDownItems.Add("Full", null, delegate { _fullEraseCheck.Checked = true; _tabs.SelectedIndex = 4; EraseDisc(); });
+            drive.DropDownItems.Add(eraseDisc);
+            ToolStripMenuItem smartErase = new ToolStripMenuItem("SmartErase");
+            smartErase.DropDownItems.Add("Quick Erase Rewritable", null, delegate { _fullEraseCheck.Checked = false; _tabs.SelectedIndex = 4; EraseDisc(); });
+            smartErase.DropDownItems.Add("Full Erase Rewritable", null, delegate { _fullEraseCheck.Checked = true; _tabs.SelectedIndex = 4; EraseDisc(); });
+            drive.DropDownItems.Add(smartErase);
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Synchronise Cache", null, delegate { RunSelectedDriveCommand("-fix", "Synchronise cache / fixate"); });
+            ToolStripMenuItem close = new ToolStripMenuItem("Close");
+            close.DropDownItems.Add("Session", null, delegate { RunSelectedDriveCommand("-fix", "Close session"); });
+            close.DropDownItems.Add("Disc", null, delegate { RunSelectedDriveCommand("-fix", "Close disc"); });
+            drive.DropDownItems.Add(close);
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Change Advanced Settings...", null, delegate { ShowSettingsDialog(); });
+            drive.DropDownItems.Add("Change Book Type...", null, delegate { ShowDriveCommandNotice("Change book type"); });
+            drive.DropDownItems.Add("Sector Viewer...", null, delegate { ShowDriveCommandNotice("Sector viewer"); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Display IFO Layer Break Information...", null, delegate { ShowLayerBreakInformation(); });
+            ToolStripMenuItem regionalCode = new ToolStripMenuItem("Regional Code");
+            regionalCode.DropDownItems.Add("Display", null, delegate { ShowDriveCommandNotice("Regional code"); });
+            drive.DropDownItems.Add(regionalCode);
+            drive.DropDownItems.Add("Capabilities", null, delegate { ShowDeviceCapabilities(); });
+            drive.DropDownItems.Add("Family Tree", null, delegate { ShowFamilyTree(); });
+            drive.DropDownItems.Add(new ToolStripSeparator());
+            drive.DropDownItems.Add("Check For Firmware Updates...", null, delegate { ShowDriveCommandNotice("Firmware update check"); });
+            tools.DropDownItems.Add(drive);
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add("Create CUE File...", null, delegate { CreateDescriptorFile(".cue"); });
+            tools.DropDownItems.Add("Create DVD File...", null, delegate { CreateDescriptorFile(".dvd"); });
+            tools.DropDownItems.Add("Create MDS File...", null, delegate { CreateDescriptorFile(".mds"); });
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add("Search for SCSI / ATAPI devices", null, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add("Automatic Write Speed...", null, delegate { ShowSettingsDialog(); });
+            tools.DropDownItems.Add("Filter Driver Load Order...", null, delegate { ShowFilterDriverDialog(); });
+            tools.DropDownItems.Add("Reset DMA...", null, delegate { ShowDriveCommandNotice("Reset DMA"); });
+            tools.DropDownItems.Add(new ToolStripSeparator());
+            tools.DropDownItems.Add("Settings...", null, delegate { ShowSettingsDialog(); });
+            menu.Items.Add(tools);
+
+            return menu;
         }
 
         private void BuildLeftPanel(Control parent)
@@ -214,15 +335,18 @@ namespace OpenBurningSuite.Xp
         private TabPage CreateBuildTab()
         {
             TabPage page = CreatePage("Build Image");
-            GroupBox group = CreateGroup("Create ISO image from folder", 14, 14, 760, 250);
+            GroupBox group = CreateGroup("Create ISO image from files and folders", 14, 14, 900, 560);
             page.Controls.Add(group);
 
-            AddLabel(group, "Source folder", 18, 32);
+            AddLabel(group, "Source path", 18, 32);
             _buildSourceText = CreateTextBox(130, 28, 500);
             group.Controls.Add(_buildSourceText);
-            Button browseSource = CreateButton("Browse", 642, 27, 86, 25);
-            browseSource.Click += delegate { BrowseFolder(_buildSourceText); };
-            group.Controls.Add(browseSource);
+            Button browseSourceFile = CreateButton("Add file", 642, 27, 86, 25);
+            browseSourceFile.Click += delegate { BrowseBuildSourceFile(); };
+            group.Controls.Add(browseSourceFile);
+            Button browseSourceFolder = CreateButton("Add folder", 734, 27, 86, 25);
+            browseSourceFolder.Click += delegate { BrowseBuildSourceFolder(); };
+            group.Controls.Add(browseSourceFolder);
 
             AddLabel(group, "Output image", 18, 70);
             _buildOutputText = CreateTextBox(130, 66, 500);
@@ -233,19 +357,61 @@ namespace OpenBurningSuite.Xp
 
             AddLabel(group, "Volume label", 18, 108);
             _volumeNameText = CreateTextBox(130, 104, 200);
-            _volumeNameText.Text = "OBS_DISC";
+            _volumeNameText.Text = "LUXBURN_DISC";
+            _volumeNameText.TextChanged += delegate { SynchronizeVolumeLabels(_volumeNameText.Text); };
             group.Controls.Add(_volumeNameText);
 
-            Label hint = new Label();
-            hint.Text = "Uses IMAPI2FS to create ISO/Joliet/UDF images. Keep labels short for older drives and operating systems.";
-            hint.Location = new Point(130, 138);
-            hint.Size = new Size(560, 36);
-            hint.ForeColor = Color.FromArgb(72, 72, 72);
-            group.Controls.Add(hint);
+            Button removeSelected = CreateButton("Remove", 642, 103, 86, 25);
+            removeSelected.Click += delegate { RemoveSelectedBuildItems(); };
+            group.Controls.Add(removeSelected);
+            Button removeAll = CreateButton("Remove all", 734, 103, 86, 25);
+            removeAll.Click += delegate { ClearBuildItems(); };
+            group.Controls.Add(removeAll);
 
-            _buildButton = CreateButton("Build image", 130, 188, 120, 29);
+            _buildItemList = new ListView();
+            _buildItemList.Location = new Point(18, 146);
+            _buildItemList.Size = new Size(400, 330);
+            _buildItemList.View = View.Details;
+            _buildItemList.FullRowSelect = true;
+            _buildItemList.GridLines = true;
+            _buildItemList.AllowDrop = true;
+            _buildItemList.Columns.Add("Name", 140);
+            _buildItemList.Columns.Add("Type", 70);
+            _buildItemList.Columns.Add("Path", 250);
+            _buildItemList.DragEnter += BuildItemListDragEnter;
+            _buildItemList.DragDrop += BuildItemListDragDrop;
+            group.Controls.Add(_buildItemList);
+
+            Label dropHint = new Label();
+            dropHint.Text = "Drop files or folders here";
+            dropHint.Location = new Point(18, 480);
+            dropHint.Size = new Size(400, 20);
+            dropHint.TextAlign = ContentAlignment.MiddleCenter;
+            dropHint.ForeColor = Color.FromArgb(72, 72, 72);
+            group.Controls.Add(dropHint);
+
+            TabControl imageTabs = new TabControl();
+            imageTabs.Location = new Point(436, 146);
+            imageTabs.Size = new Size(420, 330);
+            group.Controls.Add(imageTabs);
+
+            imageTabs.TabPages.Add(CreateBuildInfoPage());
+            imageTabs.TabPages.Add(CreateBuildDevicePage());
+            imageTabs.TabPages.Add(CreateBuildOptionsPage());
+            imageTabs.TabPages.Add(CreateBuildLabelsPage());
+            imageTabs.TabPages.Add(CreateBuildAdvancedPage());
+
+            _buildButton = CreateButton("Build image", 130, 510, 120, 29);
             _buildButton.Click += delegate { BuildImage(); };
             group.Controls.Add(_buildButton);
+
+            Button calculate = CreateButton("Calculate", 262, 510, 100, 29);
+            calculate.Click += delegate { CalculateBuildImageInformation(); };
+            group.Controls.Add(calculate);
+
+            Button write = CreateButton("Write", 374, 510, 90, 29);
+            write.Click += delegate { BuildThenOpenBurn(); };
+            group.Controls.Add(write);
 
             return page;
         }
@@ -608,6 +774,221 @@ namespace OpenBurningSuite.Xp
             parent.Controls.Add(label);
         }
 
+        private TabPage CreateBuildInfoPage()
+        {
+            TabPage page = new TabPage("Information");
+            AddInfoRow(page, "Number of Files:", _buildFileCountLabel = CreateInfoValueLabel(), 18, 24);
+            AddInfoRow(page, "Number of Folders:", _buildFolderCountLabel = CreateInfoValueLabel(), 18, 48);
+            AddInfoRow(page, "Total File Size:", _buildTotalSizeLabel = CreateInfoValueLabel(), 18, 86);
+            AddInfoRow(page, "Image Size:", _buildImageSizeLabel = CreateInfoValueLabel(), 18, 110);
+
+            Label media = CreateInfoValueLabel();
+            media.Text = "Auto";
+            AddInfoRow(page, "Min. Req. Media:", media, 18, 148);
+
+            NeutralProgressBar bar = CreateProgressBar(18, 194, 258);
+            page.Controls.Add(bar);
+
+            Button auto = CreateButton("Auto", 298, 190, 70, 25);
+            auto.Click += delegate { CalculateBuildImageInformation(); };
+            page.Controls.Add(auto);
+
+            CalculateBuildImageInformation();
+            return page;
+        }
+
+        private TabPage CreateBuildDevicePage()
+        {
+            TabPage page = new TabPage("Device");
+            TextBox info = new TextBox();
+            info.Multiline = true;
+            info.ReadOnly = true;
+            info.ScrollBars = ScrollBars.Vertical;
+            info.Location = new Point(10, 12);
+            info.Size = new Size(382, 230);
+            info.Text = GetSelectedRecorderDisplay() + Environment.NewLine + "Current Profile: " + GetCurrentMediaStatus();
+            page.Controls.Add(info);
+
+            AddLabel(page, "Write Speed:", 10, 258);
+            ComboBox speed = new ComboBox();
+            speed.DropDownStyle = ComboBoxStyle.DropDownList;
+            speed.Items.AddRange(new object[] { "AWS", "MAX", "16x", "8x", "4x" });
+            speed.SelectedIndex = 0;
+            speed.Location = new Point(96, 254);
+            speed.Size = new Size(92, 22);
+            page.Controls.Add(speed);
+
+            AddLabel(page, "Copies:", 10, 286);
+            ComboBox copies = new ComboBox();
+            copies.DropDownStyle = ComboBoxStyle.DropDownList;
+            copies.Items.AddRange(new object[] { "1", "2", "3", "4", "5" });
+            copies.SelectedIndex = 0;
+            copies.Location = new Point(96, 282);
+            copies.Size = new Size(92, 22);
+            page.Controls.Add(copies);
+            return page;
+        }
+
+        private TabPage CreateBuildOptionsPage()
+        {
+            TabPage page = new TabPage("Options");
+            AddLabel(page, "Data Type:", 18, 28);
+            _buildDataTypeCombo = CreateDropDown(146, 24, 150, new object[] { "MODE1/2048", "MODE2/2336" });
+            page.Controls.Add(_buildDataTypeCombo);
+
+            AddLabel(page, "File System:", 18, 56);
+            _buildFileSystemCombo = CreateDropDown(146, 52, 150, new object[] { "ISO9660 + UDF", "ISO9660 + Joliet + UDF", "ISO9660", "UDF" });
+            _buildFileSystemCombo.SelectedIndex = 1;
+            page.Controls.Add(_buildFileSystemCombo);
+
+            AddLabel(page, "UDF Revision:", 18, 84);
+            _buildUdfRevisionCombo = CreateDropDown(146, 80, 90, new object[] { "1.02", "1.50", "2.00", "2.01" });
+            page.Controls.Add(_buildUdfRevisionCombo);
+
+            _preservePathsCheck = CreateCheckBox("Preserve Full Pathnames", 18, 124, false);
+            page.Controls.Add(_preservePathsCheck);
+            _recurseSubdirectoriesCheck = CreateCheckBox("Recurse Subdirectories", 18, 148, true);
+            page.Controls.Add(_recurseSubdirectoriesCheck);
+            _includeHiddenFilesCheck = CreateCheckBox("Include Hidden Files", 18, 186, false);
+            page.Controls.Add(_includeHiddenFilesCheck);
+            _includeSystemFilesCheck = CreateCheckBox("Include System Files", 18, 210, false);
+            page.Controls.Add(_includeSystemFilesCheck);
+            _includeArchiveOnlyCheck = CreateCheckBox("Include Archive Files Only", 18, 234, false);
+            page.Controls.Add(_includeArchiveOnlyCheck);
+            _clearArchiveAttributeCheck = CreateCheckBox("Clear Archive Attribute", 18, 276, false);
+            page.Controls.Add(_clearArchiveAttributeCheck);
+
+            LinkLabel reset = new LinkLabel();
+            reset.Text = "Reset Settings";
+            reset.Location = new Point(146, 304);
+            reset.AutoSize = true;
+            reset.LinkClicked += delegate { ResetBuildOptions(); };
+            page.Controls.Add(reset);
+            return page;
+        }
+
+        private TabPage CreateBuildLabelsPage()
+        {
+            TabPage page = new TabPage("Labels");
+            AddLabel(page, "ISO9660:", 18, 28);
+            _iso9660LabelText = CreateTextBox(96, 24, 185);
+            page.Controls.Add(_iso9660LabelText);
+            AddLabel(page, "Joliet:", 18, 56);
+            _jolietLabelText = CreateTextBox(96, 52, 185);
+            page.Controls.Add(_jolietLabelText);
+            AddLabel(page, "UDF:", 18, 84);
+            _udfLabelText = CreateTextBox(96, 80, 185);
+            page.Controls.Add(_udfLabelText);
+
+            _syncLabelsCheck = CreateCheckBox("Synchronised Editing", 18, 118, true);
+            page.Controls.Add(_syncLabelsCheck);
+            _iso9660LabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_iso9660LabelText.Text); };
+            _jolietLabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_jolietLabelText.Text); };
+            _udfLabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_udfLabelText.Text); };
+            SynchronizeVolumeLabels(_volumeNameText.Text);
+
+            AddLabel(page, "System:", 18, 164);
+            _systemIdentifierText = CreateTextBox(126, 160, 174);
+            page.Controls.Add(_systemIdentifierText);
+            AddLabel(page, "Volume Set:", 18, 192);
+            _volumeSetText = CreateTextBox(126, 188, 174);
+            page.Controls.Add(_volumeSetText);
+            AddLabel(page, "Publisher:", 18, 220);
+            _publisherText = CreateTextBox(126, 216, 174);
+            page.Controls.Add(_publisherText);
+            AddLabel(page, "Data Preparer:", 18, 248);
+            _dataPreparerText = CreateTextBox(126, 244, 174);
+            page.Controls.Add(_dataPreparerText);
+            AddLabel(page, "Application:", 18, 276);
+            _applicationIdentifierText = CreateTextBox(126, 272, 174);
+            _applicationIdentifierText.Text = "LuxBurn";
+            page.Controls.Add(_applicationIdentifierText);
+            return page;
+        }
+
+        private TabPage CreateBuildAdvancedPage()
+        {
+            TabPage page = new TabPage("Advanced");
+            TabControl advanced = new TabControl();
+            advanced.Location = new Point(8, 8);
+            advanced.Size = new Size(390, 294);
+            page.Controls.Add(advanced);
+
+            TabPage dates = new TabPage("Dates");
+            dates.Controls.Add(CreateCheckBox("Creation:", 18, 24, false));
+            dates.Controls.Add(CreateCheckBox("Modified:", 18, 52, false));
+            dates.Controls.Add(CreateCheckBox("Effective:", 18, 80, false));
+            dates.Controls.Add(CreateCheckBox("Expiration:", 18, 108, false));
+            dates.Controls.Add(CreateRadioButton("Use File Date && Time", 18, 156, true));
+            dates.Controls.Add(CreateRadioButton("Use System Date && Time", 18, 180, false));
+            dates.Controls.Add(CreateRadioButton("Use Custom Date && Time", 18, 204, false));
+            advanced.TabPages.Add(dates);
+
+            TabPage restrictions = new TabPage("Restrictions");
+            restrictions.Controls.Add(CreateCheckBox("Allow more than 8 directory levels", 18, 24, true));
+            restrictions.Controls.Add(CreateCheckBox("Allow files without extensions", 18, 52, true));
+            restrictions.Controls.Add(CreateCheckBox("Allow long file names", 18, 80, true));
+            restrictions.Controls.Add(CreateCheckBox("Use relaxed ISO9660 character set", 18, 108, false));
+            advanced.TabPages.Add(restrictions);
+
+            TabPage boot = new TabPage("Bootable Disc");
+            boot.Controls.Add(CreateCheckBox("Make Image Bootable", 18, 24, false));
+            AddLabel(boot, "Boot Image:", 18, 62);
+            TextBox bootImage = CreateTextBox(96, 58, 210);
+            boot.Controls.Add(bootImage);
+            Button browse = CreateButton("Browse", 312, 57, 62, 25);
+            browse.Click += delegate { BrowseOpenImage(bootImage); };
+            boot.Controls.Add(browse);
+            advanced.TabPages.Add(boot);
+            return page;
+        }
+
+        private Label CreateInfoValueLabel()
+        {
+            Label label = new Label();
+            label.Text = "Unknown";
+            label.Size = new Size(180, 18);
+            return label;
+        }
+
+        private void AddInfoRow(Control parent, string caption, Label value, int x, int y)
+        {
+            AddLabel(parent, caption, x, y);
+            value.Location = new Point(x + 118, y);
+            parent.Controls.Add(value);
+        }
+
+        private ComboBox CreateDropDown(int x, int y, int width, object[] items)
+        {
+            ComboBox combo = new ComboBox();
+            combo.DropDownStyle = ComboBoxStyle.DropDownList;
+            combo.Items.AddRange(items);
+            combo.SelectedIndex = 0;
+            combo.Location = new Point(x, y);
+            combo.Size = new Size(width, 22);
+            return combo;
+        }
+
+        private CheckBox CreateCheckBox(string text, int x, int y, bool isChecked)
+        {
+            CheckBox check = new CheckBox();
+            check.Text = text;
+            check.Checked = isChecked;
+            check.Location = new Point(x, y);
+            check.Size = new Size(260, 22);
+            return check;
+        }
+
+        private RadioButton CreateRadioButton(string text, int x, int y, bool isChecked)
+        {
+            RadioButton radio = new RadioButton();
+            radio.Text = text;
+            radio.Checked = isChecked;
+            radio.Location = new Point(x, y);
+            radio.Size = new Size(220, 22);
+            return radio;
+        }
+
         private void CreateWizardCard(Control parent, int x, int y, string title, string body, string primaryText, EventHandler primaryClick, string secondaryText, EventHandler secondaryClick)
         {
             Panel card = new Panel();
@@ -649,6 +1030,708 @@ namespace OpenBurningSuite.Xp
             _componentStatusLabel.Text = cdrecord + "    " + readcd + Environment.NewLine + imapi + "    " + fs;
         }
 
+        private void BrowseBuildSourceFile()
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "All files (*.*)|*.*";
+                dialog.Multiselect = true;
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                AddBuildItems(dialog.FileNames);
+            }
+        }
+
+        private void BrowseBuildSourceFolder()
+        {
+            using (FolderBrowserDialog dialog = new FolderBrowserDialog())
+            {
+                dialog.Description = "Choose a folder to add to the image";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                AddBuildItems(new string[] { dialog.SelectedPath });
+            }
+        }
+
+        private void BuildItemListDragEnter(object sender, DragEventArgs e)
+        {
+            e.Effect = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+
+        private void BuildItemListDragDrop(object sender, DragEventArgs e)
+        {
+            string[] paths = e.Data.GetData(DataFormats.FileDrop) as string[];
+            if (paths != null)
+                AddBuildItems(paths);
+        }
+
+        private void AddBuildItems(IEnumerable<string> paths)
+        {
+            foreach (string rawPath in paths)
+            {
+                string path = string.IsNullOrEmpty(rawPath) ? string.Empty : rawPath.Trim();
+                if (path.Length == 0 || (!File.Exists(path) && !Directory.Exists(path)))
+                    continue;
+
+                if (FindBuildItem(path) != null)
+                    continue;
+
+                bool isDirectory = Directory.Exists(path);
+                ListViewItem item = new ListViewItem(Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+                item.SubItems.Add(isDirectory ? "Folder" : "File");
+                item.SubItems.Add(path);
+                item.Tag = path;
+                _buildItemList.Items.Add(item);
+                _buildSourceText.Text = path;
+            }
+
+            CalculateBuildImageInformation();
+        }
+
+        private ListViewItem FindBuildItem(string path)
+        {
+            for (int i = 0; i < _buildItemList.Items.Count; i++)
+            {
+                string existing = Convert.ToString(_buildItemList.Items[i].Tag);
+                if (string.Equals(existing, path, StringComparison.OrdinalIgnoreCase))
+                    return _buildItemList.Items[i];
+            }
+
+            return null;
+        }
+
+        private void RemoveSelectedBuildItems()
+        {
+            while (_buildItemList.SelectedItems.Count > 0)
+                _buildItemList.Items.Remove(_buildItemList.SelectedItems[0]);
+            CalculateBuildImageInformation();
+        }
+
+        private void ClearBuildItems()
+        {
+            _buildItemList.Items.Clear();
+            _buildSourceText.Text = string.Empty;
+            CalculateBuildImageInformation();
+        }
+
+        private void CalculateBuildImageInformation()
+        {
+            int files = 0;
+            int folders = 0;
+            long size = 0;
+
+            if (_buildItemList != null)
+            {
+                for (int i = 0; i < _buildItemList.Items.Count; i++)
+                {
+                    string path = Convert.ToString(_buildItemList.Items[i].Tag);
+                    if (File.Exists(path))
+                    {
+                        files++;
+                        size += new FileInfo(path).Length;
+                    }
+                    else if (Directory.Exists(path))
+                    {
+                        folders++;
+                        AddDirectoryStatistics(path, ref files, ref folders, ref size);
+                    }
+                }
+            }
+
+            if (_buildFileCountLabel != null)
+                _buildFileCountLabel.Text = files.ToString("N0");
+            if (_buildFolderCountLabel != null)
+                _buildFolderCountLabel.Text = folders.ToString("N0");
+            if (_buildTotalSizeLabel != null)
+                _buildTotalSizeLabel.Text = FormatBytes(size);
+            if (_buildImageSizeLabel != null)
+                _buildImageSizeLabel.Text = FormatBytes(size + Math.Max(0, files + folders) * 2048L);
+
+            SetStatus("Image information calculated.");
+        }
+
+        private void AddDirectoryStatistics(string path, ref int files, ref int folders, ref long size)
+        {
+            if (!_recurseSubdirectoriesCheck.Checked)
+                return;
+
+            try
+            {
+                foreach (string file in Directory.GetFiles(path))
+                {
+                    if (!ShouldIncludeFile(file))
+                        continue;
+                    files++;
+                    size += new FileInfo(file).Length;
+                }
+
+                foreach (string directory in Directory.GetDirectories(path))
+                {
+                    folders++;
+                    AddDirectoryStatistics(directory, ref files, ref folders, ref size);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Could not read " + path + ": " + ex.Message);
+            }
+        }
+
+        private bool ShouldIncludeFile(string path)
+        {
+            FileAttributes attributes = File.GetAttributes(path);
+            if (!_includeHiddenFilesCheck.Checked && (attributes & FileAttributes.Hidden) != 0)
+                return false;
+            if (!_includeSystemFilesCheck.Checked && (attributes & FileAttributes.System) != 0)
+                return false;
+            if (_includeArchiveOnlyCheck.Checked && (attributes & FileAttributes.Archive) == 0)
+                return false;
+            return true;
+        }
+
+        private string CreateBuildStagingFolder()
+        {
+            string staging = Path.Combine(Path.GetTempPath(), "LuxBurnBuild_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+
+            for (int i = 0; i < _buildItemList.Items.Count; i++)
+            {
+                string source = Convert.ToString(_buildItemList.Items[i].Tag);
+                if (File.Exists(source))
+                {
+                    string target = Path.Combine(staging, Path.GetFileName(source));
+                    CopyFileForImage(source, target);
+                }
+                else if (Directory.Exists(source))
+                {
+                    string target = _preservePathsCheck.Checked
+                        ? Path.Combine(staging, MakeSafePathRoot(source))
+                        : Path.Combine(staging, Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)));
+                    CopyDirectoryForImage(source, target);
+                }
+            }
+
+            return staging;
+        }
+
+        private void CopyDirectoryForImage(string source, string target)
+        {
+            Directory.CreateDirectory(target);
+
+            foreach (string file in Directory.GetFiles(source))
+            {
+                if (ShouldIncludeFile(file))
+                    CopyFileForImage(file, Path.Combine(target, Path.GetFileName(file)));
+            }
+
+            if (!_recurseSubdirectoriesCheck.Checked)
+                return;
+
+            foreach (string directory in Directory.GetDirectories(source))
+                CopyDirectoryForImage(directory, Path.Combine(target, Path.GetFileName(directory)));
+        }
+
+        private void CopyFileForImage(string source, string target)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(target));
+            File.Copy(source, target, true);
+            if (_clearArchiveAttributeCheck != null && _clearArchiveAttributeCheck.Checked)
+                File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.Archive);
+        }
+
+        private string MakeSafePathRoot(string path)
+        {
+            string root = Path.GetPathRoot(path);
+            string remainder = path.Substring(root.Length).Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return root.Replace(Path.DirectorySeparatorChar, '_').Replace(':', '_') + remainder.Replace(Path.DirectorySeparatorChar, '_').Replace(Path.AltDirectorySeparatorChar, '_');
+        }
+
+        private void BuildThenOpenBurn()
+        {
+            BuildImage();
+            _tabs.SelectedIndex = 2;
+        }
+
+        private void SynchronizeVolumeLabels(string value)
+        {
+            if (_syncLabelsCheck != null && !_syncLabelsCheck.Checked)
+                return;
+
+            string label = MakeVolumeLabel(value);
+            SetTextWithoutRecursion(_volumeNameText, label);
+            SetTextWithoutRecursion(_iso9660LabelText, label);
+            SetTextWithoutRecursion(_jolietLabelText, label);
+            SetTextWithoutRecursion(_udfLabelText, label);
+        }
+
+        private void SetTextWithoutRecursion(TextBox box, string value)
+        {
+            if (box != null && box.Text != value)
+                box.Text = value;
+        }
+
+        private static string MakeVolumeLabel(string value)
+        {
+            string label = string.IsNullOrEmpty(value) ? "LUXBURN_DISC" : value.Trim().ToUpperInvariant();
+            char[] invalid = Path.GetInvalidFileNameChars();
+            for (int i = 0; i < invalid.Length; i++)
+                label = label.Replace(invalid[i], '_');
+            return label.Length > 32 ? label.Substring(0, 32) : label;
+        }
+
+        private void ResetBuildOptions()
+        {
+            _buildDataTypeCombo.SelectedIndex = 0;
+            _buildFileSystemCombo.SelectedIndex = 1;
+            _buildUdfRevisionCombo.SelectedIndex = 0;
+            _preservePathsCheck.Checked = false;
+            _recurseSubdirectoriesCheck.Checked = true;
+            _includeHiddenFilesCheck.Checked = false;
+            _includeSystemFilesCheck.Checked = false;
+            _includeArchiveOnlyCheck.Checked = false;
+            _clearArchiveAttributeCheck.Checked = false;
+        }
+
+        private void NewProject()
+        {
+            ClearBuildItems();
+            _buildOutputText.Text = string.Empty;
+            _volumeNameText.Text = "LUXBURN_DISC";
+            _projectPath = null;
+            SetStatus("New project ready.");
+        }
+
+        private void SaveProject()
+        {
+            using (SaveFileDialog dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "LuxBurn project (*.lbp)|*.lbp|All files (*.*)|*.*";
+                dialog.DefaultExt = "lbp";
+                if (!string.IsNullOrEmpty(_projectPath))
+                    dialog.FileName = _projectPath;
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                using (StreamWriter writer = new StreamWriter(dialog.FileName, false, System.Text.Encoding.UTF8))
+                {
+                    writer.WriteLine("LuxBurnProject=1");
+                    writer.WriteLine("Output=" + _buildOutputText.Text);
+                    writer.WriteLine("Volume=" + _volumeNameText.Text);
+                    writer.WriteLine("FileSystem=" + Convert.ToString(_buildFileSystemCombo.SelectedItem));
+                    writer.WriteLine("UdfRevision=" + Convert.ToString(_buildUdfRevisionCombo.SelectedItem));
+                    writer.WriteLine("Recurse=" + _recurseSubdirectoriesCheck.Checked);
+                    for (int i = 0; i < _buildItemList.Items.Count; i++)
+                        writer.WriteLine("Item=" + Convert.ToString(_buildItemList.Items[i].Tag));
+                }
+
+                _projectPath = dialog.FileName;
+                SaveMostRecentProjectPath(_projectPath);
+                SetStatus("Project saved.");
+            }
+        }
+
+        private void LoadProject()
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "LuxBurn project (*.lbp)|*.lbp|All files (*.*)|*.*";
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                    LoadProjectFromPath(dialog.FileName);
+            }
+        }
+
+        private void LoadMostRecentProject()
+        {
+            string path = GetMostRecentProjectPath();
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            {
+                MessageBox.Show(this, "No recent project was found.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            LoadProjectFromPath(path);
+        }
+
+        private void LoadProjectFromPath(string path)
+        {
+            ClearBuildItems();
+            foreach (string line in File.ReadAllLines(path))
+            {
+                if (line.StartsWith("Output=", StringComparison.OrdinalIgnoreCase))
+                    _buildOutputText.Text = line.Substring(7);
+                else if (line.StartsWith("Volume=", StringComparison.OrdinalIgnoreCase))
+                    _volumeNameText.Text = line.Substring(7);
+                else if (line.StartsWith("Recurse=", StringComparison.OrdinalIgnoreCase))
+                    _recurseSubdirectoriesCheck.Checked = string.Equals(line.Substring(8), "True", StringComparison.OrdinalIgnoreCase);
+                else if (line.StartsWith("Item=", StringComparison.OrdinalIgnoreCase))
+                    AddBuildItems(new string[] { line.Substring(5) });
+            }
+
+            _projectPath = path;
+            SaveMostRecentProjectPath(path);
+            CalculateBuildImageInformation();
+            SetStatus("Project loaded.");
+        }
+
+        private static string GetRecentProjectStorePath()
+        {
+            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LuxBurn");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, "recent.txt");
+        }
+
+        private static void SaveMostRecentProjectPath(string path)
+        {
+            File.WriteAllText(GetRecentProjectStorePath(), path);
+        }
+
+        private static string GetMostRecentProjectPath()
+        {
+            string path = GetRecentProjectStorePath();
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : string.Empty;
+        }
+
+        private void ExportGraphData()
+        {
+            using (SaveFileDialog dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "CSV file (*.csv)|*.csv|All files (*.*)|*.*";
+                dialog.DefaultExt = "csv";
+                dialog.FileName = "LuxBurnGraphData.csv";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                using (StreamWriter writer = new StreamWriter(dialog.FileName, false, System.Text.Encoding.UTF8))
+                {
+                    writer.WriteLine("Name,Type,Path,Bytes");
+                    for (int i = 0; i < _buildItemList.Items.Count; i++)
+                    {
+                        string path = Convert.ToString(_buildItemList.Items[i].Tag);
+                        long bytes = File.Exists(path) ? new FileInfo(path).Length : GetDirectorySize(path);
+                        writer.WriteLine("\"" + _buildItemList.Items[i].Text.Replace("\"", "\"\"") + "\",\"" + _buildItemList.Items[i].SubItems[1].Text + "\",\"" + path.Replace("\"", "\"\"") + "\"," + bytes);
+                    }
+                }
+
+                SetStatus("Graph data exported.");
+            }
+        }
+
+        private void DisplayGraphData()
+        {
+            CalculateBuildImageInformation();
+            StringBuilder text = new StringBuilder();
+            text.AppendLine("LuxBurn Graph Data");
+            text.AppendLine();
+            text.AppendLine("Files: " + _buildFileCountLabel.Text);
+            text.AppendLine("Folders: " + _buildFolderCountLabel.Text);
+            text.AppendLine("Total size: " + _buildTotalSizeLabel.Text);
+            text.AppendLine("Estimated image size: " + _buildImageSizeLabel.Text);
+            ShowTextDialog("Graph Data", text.ToString());
+        }
+
+        private void FocusVolumeLabels()
+        {
+            _tabs.SelectedIndex = 1;
+            _iso9660LabelText.Focus();
+        }
+
+        private void CreateDescriptorFile(string extension)
+        {
+            using (SaveFileDialog dialog = new SaveFileDialog())
+            {
+                dialog.Filter = extension.ToUpperInvariant().TrimStart('.') + " file (*" + extension + ")|*" + extension + "|All files (*.*)|*.*";
+                dialog.DefaultExt = extension.TrimStart('.');
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                string image = _burnImageText.Text.Trim();
+                if (image.Length == 0)
+                    image = Path.ChangeExtension(dialog.FileName, ".iso");
+
+                using (StreamWriter writer = new StreamWriter(dialog.FileName, false, System.Text.Encoding.ASCII))
+                {
+                    if (extension.Equals(".cue", StringComparison.OrdinalIgnoreCase))
+                    {
+                        writer.WriteLine("FILE \"" + Path.GetFileName(image) + "\" BINARY");
+                        writer.WriteLine("  TRACK 01 MODE1/2048");
+                        writer.WriteLine("    INDEX 01 00:00:00");
+                    }
+                    else if (extension.Equals(".dvd", StringComparison.OrdinalIgnoreCase))
+                    {
+                        writer.WriteLine("LayerBreak=0");
+                        writer.WriteLine(Path.GetFileName(image));
+                    }
+                    else
+                    {
+                        writer.WriteLine("; LuxBurn descriptor");
+                        writer.WriteLine("Image=" + image);
+                    }
+                }
+
+                SetStatus("Descriptor file created.");
+            }
+        }
+
+        private void ShowLayerBreakInformation()
+        {
+            string image = _burnImageText.Text.Trim();
+            if (image.Length == 0)
+                image = _buildOutputText.Text.Trim();
+
+            if (image.Length == 0 || !File.Exists(image))
+            {
+                MessageBox.Show(this, "Choose or build an image first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            long sectors = (new FileInfo(image).Length + 2047) / 2048;
+            string message = "Image sectors: " + sectors.ToString("N0") + Environment.NewLine +
+                             "Layer break sector: " + (sectors / 2).ToString("N0") + Environment.NewLine +
+                             "This is an informational midpoint estimate for DVD-sized images.";
+            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void EjectSelectedDrive()
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            if (recorder == null)
+            {
+                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                _burningService.RunDriveCommand(recorder.Id, "-eject", Log, CancellationToken.None);
+                SetStatus("Eject command sent.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not eject the selected drive: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RunSelectedDriveCommand(string command, string displayName)
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            if (recorder == null)
+            {
+                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            RunWork(displayName + "...", delegate
+            {
+                _burningService.RunDriveCommand(recorder.Id, command, Log, CancellationToken.None);
+            },
+            delegate
+            {
+                Log(displayName + " completed.");
+                SetStatus(displayName + " completed.");
+            });
+        }
+
+        private void ShowDriveCommandNotice(string commandName)
+        {
+            string message = commandName + " is a drive/vendor-specific command. LuxBurn does not send it automatically unless a safe backend is available for the selected drive.";
+            Log(message);
+            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ShowSettingsDialog()
+        {
+            Form dialog = new Form();
+            dialog.Text = "Settings";
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.ClientSize = new Size(360, 220);
+            dialog.Font = Font;
+
+            dialog.Controls.Add(CreateCheckBox("Eject media after burn", 18, 18, _ejectAfterBurnCheck.Checked));
+            dialog.Controls.Add(CreateCheckBox("Calculate SHA-256 after burn", 18, 46, _verifyAfterBurnCheck.Checked));
+            dialog.Controls.Add(CreateCheckBox("Calculate SHA-256 after copy", 18, 74, _verifyAfterCopyCheck.Checked));
+            Button ok = CreateButton("OK", 242, 176, 90, 28);
+            ok.DialogResult = DialogResult.OK;
+            dialog.Controls.Add(ok);
+            dialog.AcceptButton = ok;
+
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                _ejectAfterBurnCheck.Checked = ((CheckBox)dialog.Controls[0]).Checked;
+                _verifyAfterBurnCheck.Checked = ((CheckBox)dialog.Controls[1]).Checked;
+                _verifyAfterCopyCheck.Checked = ((CheckBox)dialog.Controls[2]).Checked;
+            }
+        }
+
+        private void ShowFilterDriverDialog()
+        {
+            StringBuilder text = new StringBuilder();
+            text.AppendLine("Filter Driver Load Order");
+            text.AppendLine();
+            text.AppendLine("This system reports optical drives through Windows storage drivers.");
+            text.AppendLine("Use Device Manager for detailed filter-driver inspection.");
+            ShowTextDialog("Filter Driver Load Order", text.ToString());
+        }
+
+        private void ShowDeviceCapabilities()
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            Form dialog = new Form();
+            dialog.Text = "Device Capabilities";
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MinimizeBox = false;
+            dialog.MaximizeBox = false;
+            dialog.ClientSize = new Size(500, 520);
+            dialog.Font = Font;
+
+            AddLabel(dialog, "Device:", 8, 12);
+            Label device = new Label();
+            device.Text = recorder == null ? "No drive selected" : recorder.DisplayName;
+            device.Location = new Point(126, 12);
+            device.Size = new Size(360, 18);
+            dialog.Controls.Add(device);
+            AddLabel(dialog, "Vendor Specific Info:", 8, 64);
+            Label vendor = new Label();
+            vendor.Text = recorder == null ? string.Empty : recorder.Id;
+            vendor.Location = new Point(126, 64);
+            vendor.Size = new Size(360, 36);
+            dialog.Controls.Add(vendor);
+
+            GroupBox read = CreateGroup("Read Capabilities", 8, 112, 240, 320);
+            GroupBox write = CreateGroup("Write Capabilities", 256, 112, 240, 320);
+            dialog.Controls.Add(read);
+            dialog.Controls.Add(write);
+            string[] caps = new string[] { "CD-R", "CD-RW", "DVD-ROM", "DVD-R", "DVD-RW", "DVD+R", "DVD+RW", "DVD-R DL", "DVD+R DL", "DVD-RAM", "BD-ROM", "BD-R", "BD-RE", "LightScribe" };
+            for (int i = 0; i < caps.Length; i++)
+            {
+                read.Controls.Add(CreateCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 28, IsLikelySupported(caps[i], true)));
+                write.Controls.Add(CreateCheckBox(caps[i], 14 + (i / 7) * 112, 22 + (i % 7) * 28, IsLikelySupported(caps[i], false)));
+            }
+
+            Button firmware = CreateButton("Check For Firmware Update", 8, 474, 220, 28);
+            firmware.Click += delegate { ShowDriveCommandNotice("Firmware update check"); };
+            dialog.Controls.Add(firmware);
+            Button ok = CreateButton("OK", 414, 474, 78, 28);
+            ok.DialogResult = DialogResult.OK;
+            dialog.Controls.Add(ok);
+            dialog.AcceptButton = ok;
+            dialog.ShowDialog(this);
+        }
+
+        private bool IsLikelySupported(string capability, bool read)
+        {
+            if (capability.StartsWith("BD", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (capability == "LightScribe")
+                return false;
+            if (read)
+                return true;
+            return capability.IndexOf("ROM", StringComparison.OrdinalIgnoreCase) < 0;
+        }
+
+        private void ShowFamilyTree()
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            StringBuilder text = new StringBuilder();
+            text.AppendLine("Device: " + (recorder == null ? "No drive selected" : recorder.DisplayName));
+            text.AppendLine();
+            text.AppendLine("Family Tree:");
+            text.AppendLine("  -> Windows storage stack");
+            text.AppendLine("  -> CD-ROM device class");
+            if (recorder != null)
+            {
+                text.AppendLine("  -> " + recorder.VendorId + " " + recorder.ProductId);
+                if (recorder.RegistryBusNumber >= 0)
+                    text.AppendLine("  -> Bus " + recorder.RegistryBusNumber);
+                text.AppendLine("  -> Recorder ID " + recorder.Id);
+            }
+            ShowTextDialog("Family Tree", text.ToString());
+        }
+
+        private DiscRecorderInfo GetSelectedRecorder()
+        {
+            if (_driveCombo != null && _driveCombo.SelectedItem is DiscRecorderInfo)
+                return (DiscRecorderInfo)_driveCombo.SelectedItem;
+            if (_burnDriveCombo != null && _burnDriveCombo.SelectedItem is DiscRecorderInfo)
+                return (DiscRecorderInfo)_burnDriveCombo.SelectedItem;
+            if (_copyDriveCombo != null && _copyDriveCombo.SelectedItem is DiscRecorderInfo)
+                return (DiscRecorderInfo)_copyDriveCombo.SelectedItem;
+            if (_eraseDriveCombo != null && _eraseDriveCombo.SelectedItem is DiscRecorderInfo)
+                return (DiscRecorderInfo)_eraseDriveCombo.SelectedItem;
+            return null;
+        }
+
+        private string GetSelectedRecorderDisplay()
+        {
+            DiscRecorderInfo recorder = GetSelectedRecorder();
+            return recorder == null ? "No device selected" : recorder.DisplayName;
+        }
+
+        private string GetCurrentMediaStatus()
+        {
+            return _driveCombo.Items.Count == 0 ? "Device Not Ready (Medium Not Present - Tray Closed)" : "N/A";
+        }
+
+        private void ShowTextDialog(string title, string text)
+        {
+            Form dialog = new Form();
+            dialog.Text = title;
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Size = new Size(560, 420);
+            dialog.Font = Font;
+            TextBox box = new TextBox();
+            box.Multiline = true;
+            box.ReadOnly = true;
+            box.ScrollBars = ScrollBars.Both;
+            box.Dock = DockStyle.Fill;
+            box.Text = text;
+            dialog.Controls.Add(box);
+            dialog.ShowDialog(this);
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            string[] units = new string[] { "B", "KiB", "MiB", "GiB", "TiB" };
+            double value = bytes;
+            int unit = 0;
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+
+            return value.ToString(unit == 0 ? "N0" : "N2") + " " + units[unit];
+        }
+
+        private long GetDirectorySize(string path)
+        {
+            long size = 0;
+            if (!Directory.Exists(path))
+                return 0;
+
+            int files = 0;
+            int folders = 0;
+            AddDirectoryStatistics(path, ref files, ref folders, ref size);
+            return size;
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    Directory.Delete(path, true);
+            }
+            catch
+            {
+            }
+        }
+
         private void StartBuildWizard(string preset)
         {
             _tabs.SelectedIndex = 1;
@@ -663,8 +1746,8 @@ namespace OpenBurningSuite.Xp
             SetStatus("Build wizard opened.");
             Log("Wizard selected: " + preset + ".");
 
-            if (_buildSourceText.Text.Trim().Length == 0)
-                BrowseFolder(_buildSourceText);
+            if (_buildItemList.Items.Count == 0)
+                BrowseBuildSourceFolder();
 
             if (_buildOutputText.Text.Trim().Length == 0)
                 BrowseSaveIso(_buildOutputText);
@@ -909,26 +1992,34 @@ namespace OpenBurningSuite.Xp
 
         private void BuildImage()
         {
-            string source = _buildSourceText.Text.Trim();
             string output = _buildOutputText.Text.Trim();
             string volume = _volumeNameText.Text.Trim();
 
-            if (source.Length == 0 || output.Length == 0)
+            if (_buildItemList.Items.Count == 0 || output.Length == 0)
             {
-                MessageBox.Show(this, "Choose a source folder and output image path first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "Add files or folders and choose an output image path first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             RunWork("Building image...", delegate
             {
-                Log("Building image from " + source);
-                _burningService.BuildIso(source, output, volume);
+                string stagingPath = CreateBuildStagingFolder();
+                try
+                {
+                    Log("Building image from " + _buildItemList.Items.Count + " source item(s).");
+                    _burningService.BuildIso(stagingPath, output, volume);
+                }
+                finally
+                {
+                    TryDeleteDirectory(stagingPath);
+                }
             },
             delegate
             {
                 Log("Image built: " + output);
                 _burnImageText.Text = output;
                 _verifyFileText.Text = output;
+                CalculateBuildImageInformation();
             });
         }
 

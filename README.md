@@ -27,6 +27,8 @@ The compatibility build uses a bundled cdrecord/cdrtools backend for CD and DVD 
 |:--|:--|
 | Burn images | Writes ISO images to optical media using cdrecord. |
 | Copy discs | Copies standard data discs to ISO-style images using readcd. |
+| Build workspace | Adds drag-and-drop file/folder insertion, project save/load, image information, options, labels, and advanced tabs. |
+| Drive tools | Adds ISO and Drive menus for device search, tray commands, erase/fixate actions, capabilities, family tree, and settings. |
 | Media checks | Detects blank, non-empty, finalized, non-erasable, and oversized discs before writing. |
 | Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
 | Wizards | Adds guided entry points for data, audio, video, game, copy, and erase workflows. |
