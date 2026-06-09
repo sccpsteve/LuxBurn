@@ -149,6 +149,10 @@ namespace OpenBurningSuite.Xp
             Control verifyTabButton = CreateSideButton(204, "Verify Files", "6-ApplyButton.png");
             verifyTabButton.Click += delegate { _tabs.SelectedIndex = 4; };
             parent.Controls.Add(verifyTabButton);
+
+            Control wizardTabButton = CreateSideButton(244, "Wizards", "wand.png");
+            wizardTabButton.Click += delegate { _tabs.SelectedIndex = 5; };
+            parent.Controls.Add(wizardTabButton);
         }
 
         private void BuildTabs(Control parent)
@@ -163,6 +167,7 @@ namespace OpenBurningSuite.Xp
             _tabs.TabPages.Add(CreateBurnTab());
             _tabs.TabPages.Add(CreateEraseTab());
             _tabs.TabPages.Add(CreateVerifyTab());
+            _tabs.TabPages.Add(CreateWizardTab());
             _tabs.TabPages.Add(CreateLogTab());
         }
 
@@ -373,6 +378,95 @@ namespace OpenBurningSuite.Xp
             return page;
         }
 
+        private TabPage CreateWizardTab()
+        {
+            TabPage page = CreatePage("Wizards");
+
+            Panel surface = new Panel();
+            surface.Dock = DockStyle.Fill;
+            surface.AutoScroll = true;
+            surface.BackColor = page.BackColor;
+            page.Controls.Add(surface);
+
+            GroupBox group = CreateGroup("Quick Start Wizards", 14, 14, 910, 500);
+            surface.Controls.Add(group);
+
+            Label intro = new Label();
+            intro.Text = "Choose a task. LuxBurn will open the matching workspace and preselect sensible settings for this XP build.";
+            intro.Location = new Point(18, 24);
+            intro.Size = new Size(850, 34);
+            intro.ForeColor = Color.FromArgb(72, 72, 72);
+            group.Controls.Add(intro);
+
+            CreateWizardCard(
+                group,
+                18,
+                66,
+                "Data Disc Wizard",
+                "Build a standard data image from a folder, then burn it or save it for later.",
+                "Build image",
+                delegate { StartBuildWizard("DATA_DISC"); },
+                "Burn image",
+                delegate { StartBurnWizard("Data Disc Wizard"); });
+
+            CreateWizardCard(
+                group,
+                462,
+                66,
+                "Audio && Music Wizard",
+                "Copy music files as a data disc. Red Book audio CD authoring belongs to the full modern engine.",
+                "Music data disc",
+                delegate { StartBuildWizard("MUSIC_DISC"); },
+                "Audio CD",
+                delegate { ShowModernWizardNotice("Audio CD authoring and audio ripping are not ported into the XP build yet."); });
+
+            CreateWizardCard(
+                group,
+                18,
+                196,
+                "Video Disc Wizard",
+                "Build an image from a prepared VIDEO_TS, BDMV, or BDAV folder, or burn an existing image.",
+                "Video folder",
+                delegate { StartBuildWizard("VIDEO_DISC"); },
+                "Burn image",
+                delegate { StartBurnWizard("Video Disc Wizard"); });
+
+            CreateWizardCard(
+                group,
+                462,
+                196,
+                "Game Disc Wizard",
+                "Burn or verify an existing game image. Console-specific patching stays in the modern build.",
+                "Burn game image",
+                delegate { StartBurnWizard("Game Disc Wizard"); },
+                "Verify image",
+                delegate { StartVerifyWizard("Game Disc Wizard"); });
+
+            CreateWizardCard(
+                group,
+                18,
+                326,
+                "Copy Disc Wizard",
+                "Copying a disc to an image requires the read engine from the modern application.",
+                "Open Log",
+                delegate { _tabs.SelectedIndex = 6; SetStatus("Copy Disc Wizard is not ported to the XP build yet."); },
+                "Details",
+                delegate { ShowModernWizardNotice("Copy Disc Wizard uses the modern read engine and is not ported into LuxBurn XP yet."); });
+
+            CreateWizardCard(
+                group,
+                462,
+                326,
+                "Blank / Erase Wizard",
+                "Erase rewritable media before burning. CD-R and DVD-R media cannot be erased.",
+                "Erase disc",
+                delegate { _tabs.SelectedIndex = 3; SetStatus("Blank / Erase Wizard opened."); },
+                "Refresh drives",
+                delegate { RefreshDrives(); _tabs.SelectedIndex = 3; });
+
+            return page;
+        }
+
         private TabPage CreateLogTab()
         {
             TabPage page = CreatePage("Log");
@@ -453,12 +547,92 @@ namespace OpenBurningSuite.Xp
             parent.Controls.Add(label);
         }
 
+        private void CreateWizardCard(Control parent, int x, int y, string title, string body, string primaryText, EventHandler primaryClick, string secondaryText, EventHandler secondaryClick)
+        {
+            Panel card = new Panel();
+            card.Location = new Point(x, y);
+            card.Size = new Size(420, 112);
+            card.BackColor = Color.FromArgb(242, 242, 238);
+            card.BorderStyle = BorderStyle.FixedSingle;
+            parent.Controls.Add(card);
+
+            Label heading = new Label();
+            heading.Text = title;
+            heading.Font = new Font("Tahoma", 8.25f, FontStyle.Bold);
+            heading.Location = new Point(12, 10);
+            heading.Size = new Size(392, 18);
+            card.Controls.Add(heading);
+
+            Label description = new Label();
+            description.Text = body;
+            description.Location = new Point(12, 32);
+            description.Size = new Size(392, 34);
+            description.ForeColor = Color.FromArgb(72, 72, 72);
+            card.Controls.Add(description);
+
+            Button primary = CreateButton(primaryText, 12, 74, 112, 25);
+            primary.Click += primaryClick;
+            card.Controls.Add(primary);
+
+            Button secondary = CreateButton(secondaryText, 132, 74, 112, 25);
+            secondary.Click += secondaryClick;
+            card.Controls.Add(secondary);
+        }
+
         private void RefreshComponentStatus()
         {
             string imapi = _burningService.IsImapi2Available ? "IMAPI2: ready" : "IMAPI2: not installed";
             string fs = _burningService.IsImapi2FileSystemAvailable ? "IMAPI2FS: ready" : "IMAPI2FS: not installed";
             string cdrecord = _burningService.IsCdrecordAvailable ? "cdrecord: ready" : "cdrecord: not found";
             _componentStatusLabel.Text = cdrecord + Environment.NewLine + imapi + "    " + fs;
+        }
+
+        private void StartBuildWizard(string preset)
+        {
+            _tabs.SelectedIndex = 1;
+
+            if (string.Equals(preset, "MUSIC_DISC", StringComparison.OrdinalIgnoreCase))
+                _volumeNameText.Text = "MUSIC_DISC";
+            else if (string.Equals(preset, "VIDEO_DISC", StringComparison.OrdinalIgnoreCase))
+                _volumeNameText.Text = "VIDEO_DISC";
+            else
+                _volumeNameText.Text = "DATA_DISC";
+
+            SetStatus("Build wizard opened.");
+            Log("Wizard selected: " + preset + ".");
+
+            if (_buildSourceText.Text.Trim().Length == 0)
+                BrowseFolder(_buildSourceText);
+
+            if (_buildOutputText.Text.Trim().Length == 0)
+                BrowseSaveIso(_buildOutputText);
+        }
+
+        private void StartBurnWizard(string sourceWizard)
+        {
+            _tabs.SelectedIndex = 2;
+            SetStatus(sourceWizard + " opened.");
+            Log("Wizard selected: " + sourceWizard + " burn image.");
+
+            if (_burnImageText.Text.Trim().Length == 0)
+                BrowseOpenImage(_burnImageText);
+        }
+
+        private void StartVerifyWizard(string sourceWizard)
+        {
+            _tabs.SelectedIndex = 4;
+            SetStatus(sourceWizard + " verification opened.");
+            Log("Wizard selected: " + sourceWizard + " verify image.");
+
+            if (_verifyFileText.Text.Trim().Length == 0)
+                BrowseOpenImage(_verifyFileText);
+        }
+
+        private void ShowModernWizardNotice(string message)
+        {
+            SetStatus("Wizard feature is not ported to the XP build yet.");
+            Log(message);
+            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private static Image LoadButtonAsset(string fileName)

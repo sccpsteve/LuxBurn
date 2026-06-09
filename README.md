@@ -28,6 +28,7 @@ The compatibility build uses a bundled cdrecord/cdrtools backend for CD and DVD 
 | Burn images | Writes ISO images to optical media using cdrecord. |
 | Media checks | Detects blank, non-empty, finalized, non-erasable, and oversized discs before writing. |
 | Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
+| Wizards | Adds guided entry points for data, audio, video, game, copy, and erase workflows. |
 | Progress | Shows write progress, buffer, and device buffer. |
 | Abort handling | Aborts backend burns and asks before closing during an active burn. |
 | Verification | Calculates SHA-256, SHA-1, SHA-512, or MD5 checksums. |
