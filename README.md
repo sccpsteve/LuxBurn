@@ -17,7 +17,7 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 
 <div align="center">
 
-<img src="LuxBurn/Assets/Screenshots/LuxBurn-v1.4.png" alt="LuxBurn main window" width="900">
+<img src="LuxBurn/Assets/Screenshots/LBPic.png" alt="LuxBurn main window" width="900">
 
 </div>
 
