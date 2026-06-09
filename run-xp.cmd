@@ -10,4 +10,4 @@ if errorlevel 1 (
 )
 
 echo Starting LuxBurn...
-start "" "%~dp0OpenBurningSuite.Xp\bin\Release\LuxBurn.exe"
+start "" "%~dp0LuxBurn\bin\Release\LuxBurn.exe"

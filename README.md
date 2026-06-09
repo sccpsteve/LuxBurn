@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="OpenBurningSuite.Xp/Assets/Brand/LuxburnLarge.png" alt="LuxBurn" width="640">
+<img src="LuxBurn/Assets/Brand/LuxburnLarge.png" alt="LuxBurn" width="640">
 
-# LuxBurn [Indev.]
+# LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.4.0-blue)]()
@@ -13,11 +13,11 @@
 
 LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.4 is designed to run from Windows XP through Windows 11.
 
-The compatibility build uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
+The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
 <div align="center">
 
-<img src="OpenBurningSuite.Xp/Assets/Screenshots/LuxBurn-v1.4.png" alt="LuxBurn main window" width="900">
+<img src="LuxBurn/Assets/Screenshots/LuxBurn-v1.4.png" alt="LuxBurn main window" width="900">
 
 </div>
 
@@ -54,7 +54,7 @@ run-xp.cmd
 Open the built executable directly:
 
 ```cmd
-OpenBurningSuite.Xp\bin\Release\LuxBurn.exe
+LuxBurn\bin\Release\LuxBurn.exe
 ```
 
 ## Release Artifact
@@ -70,8 +70,13 @@ LuxBurn-v1.4.zip
 - LuxBurn normally launches without Administrator permissions. If a drive blocks access, try running it as Administrator as a troubleshooting step.
 - CD-R and other write-once media cannot be erased or safely resumed after a failed write.
 - If cdrecord is unavailable, LuxBurn can open Windows Disc Image Burner on Windows versions that include it.
-- Windows XP through Windows 11 support notes are documented in [WINDOWS_XP.md](WINDOWS_XP.md).
 - Bundled third-party tools retain their own licenses.
+
+## Credits
+
+LuxBurn began as a Windows-focused remix of SvenGDK's Open Burning Suite and keeps the original BSD 2-Clause licensing.
+
+LuxBurn also takes practical backend and workflow inspiration from CDRTFE, especially around using cdrtools reliably from a Windows interface.
 
 ## License
 
