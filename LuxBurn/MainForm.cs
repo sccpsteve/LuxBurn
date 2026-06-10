@@ -299,7 +299,7 @@ namespace LuxBurn
         private void BuildLeftPanel(Control parent)
         {
             parent.BackColor = Color.FromArgb(32, 45, 55);
-            ApplyViewportBackground(parent, LoadUiAsset("LuxburnSidebar1.png"));
+            ApplyViewportBackground(parent, LoadUiAsset("LuxburnSidebar2.png"), true);
             parent.Padding = new Padding(12);
 
             Label section = new Label();
@@ -315,27 +315,27 @@ namespace LuxBurn
             ezModeButton.Click += delegate { _tabs.SelectedIndex = 6; };
             parent.Controls.Add(ezModeButton);
 
-            _refreshButton = CreateSideButton(113, "Refresh", "icon_refresh.png");
+            _refreshButton = CreateSideButton(113, "Refresh", "Refresh.png");
             _refreshButton.Click += delegate { RefreshDrives(); };
             parent.Controls.Add(_refreshButton);
 
-            Control buildTabButton = CreateSideButton(184, "Build", "145_add.png");
+            Control buildTabButton = CreateSideButton(184, "Build", "Build-Disc.png");
             buildTabButton.Click += delegate { _tabs.SelectedIndex = 1; };
             parent.Controls.Add(buildTabButton);
 
-            Control burnTabButton = CreateSideButton(255, "Write", "139-Edit.png");
+            Control burnTabButton = CreateSideButton(255, "Write", "Write-Disc.png");
             burnTabButton.Click += delegate { _tabs.SelectedIndex = 2; };
             parent.Controls.Add(burnTabButton);
 
-            Control copyTabButton = CreateSideButton(326, "Copy", "COPY_CUSTOM.png");
+            Control copyTabButton = CreateSideButton(326, "Copy", "Copy-To-Folder.png");
             copyTabButton.Click += delegate { _tabs.SelectedIndex = 3; };
             parent.Controls.Add(copyTabButton);
 
-            Control eraseTabButton = CreateSideButton(397, "Erase", "18_delete.png");
+            Control eraseTabButton = CreateSideButton(397, "Erase", "Erase-Disc.png");
             eraseTabButton.Click += delegate { _tabs.SelectedIndex = 4; };
             parent.Controls.Add(eraseTabButton);
 
-            Control verifyTabButton = CreateSideButton(468, "Verify", "6-ApplyButton.png");
+            Control verifyTabButton = CreateSideButton(468, "Verify", "Verify-Data.png");
             verifyTabButton.Click += delegate { _tabs.SelectedIndex = 5; };
             parent.Controls.Add(verifyTabButton);
         }
@@ -750,12 +750,12 @@ namespace LuxBurn
 
             EzModeWheel wheel = new EzModeWheel(CreateUiFont(8.25f, FontStyle.Regular));
             wheel.Location = new Point(72, 108);
-            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), LoadButtonAsset("145_add.png"), new Point(96, 22), 120, new Rectangle(92, 85, 92, 42), 100, delegate { StartBuildWizard("DATA_DISC"); });
-            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), LoadButtonAsset("139-Edit.png"), new Point(220, 22), 124, new Rectangle(216, 85, 92, 42), 100, delegate { StartBurnWizard("EZ Mode"); });
-            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(245, 94), LoadButtonAsset("COPY_CUSTOM.png"), new Point(291, 144), 110, new Rectangle(284, 197, 92, 42), 100, delegate { StartCopyWizard(); });
-            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(197, 219), LoadButtonAsset("6-ApplyButton.png"), new Point(221, 256), 131, new Rectangle(217, 312, 92, 42), 100, delegate { StartVerifyWizard("EZ Mode"); });
-            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(30, 219), LoadButtonAsset("18_delete.png"), new Point(101, 262), 100, new Rectangle(95, 312, 92, 42), 100, delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
-            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), LoadButtonAsset("Drives.png"), new Point(37, 150), 54, new Rectangle(24, 197, 92, 42), 100, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
+            wheel.AddSlice("Build", "Create image", LoadUiAsset("pie_6_1.png"), LoadUiAsset("pie_6_1_O.png"), new Point(30, -9), LoadButtonAsset("Build-Disc.png"), new Point(102, 31), 100, new Rectangle(92, 85, 92, 42), 100, delegate { StartBuildWizard("DATA_DISC"); });
+            wheel.AddSlice("Write", "Burn image", LoadUiAsset("pie_6_2.png"), LoadUiAsset("pie_6_2_O.png"), new Point(197, -9), LoadButtonAsset("Write-Disc.png"), new Point(232, 31), 100, new Rectangle(216, 85, 92, 42), 100, delegate { StartBurnWizard("EZ Mode"); });
+            wheel.AddSlice("Copy", "Read disc", LoadUiAsset("pie_6_3.png"), LoadUiAsset("pie_6_3_O.png"), new Point(245, 94), LoadButtonAsset("Copy-To-Folder.png"), new Point(294, 147), 100, new Rectangle(284, 194, 92, 42), 100, delegate { StartCopyWizard(); });
+            wheel.AddSlice("Verify", "Check image", LoadUiAsset("pie_6_4.png"), LoadUiAsset("pie_6_4_O.png"), new Point(197, 219), LoadButtonAsset("Verify-Disc.png"), new Point(232, 262), 100, new Rectangle(217, 312, 92, 42), 100, delegate { StartVerifyWizard("EZ Mode"); });
+            wheel.AddSlice("Erase", "Blank disc", LoadUiAsset("pie_6_5.png"), LoadUiAsset("pie_6_5_O.png"), new Point(30, 219), LoadButtonAsset("Erase-Disc.png"), new Point(102, 262), 100, new Rectangle(95, 312, 92, 42), 100, delegate { _tabs.SelectedIndex = 4; SetStatus("Erase workspace opened."); });
+            wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), LoadButtonAsset("Drives.png"), new Point(37, 150), 55, new Rectangle(24, 197, 92, 42), 100, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
             surface.Controls.Add(wheel);
 
             return page;
@@ -779,12 +779,12 @@ namespace LuxBurn
         {
             TabPage page = new TabPage(text);
             page.BackColor = Color.FromArgb(35, 58, 70);
-            ApplyViewportBackground(page, LoadUiAsset("BG-1.png"));
+            ApplyViewportBackground(page, LoadUiAsset("BG-1.png"), false);
             page.Padding = new Padding(10);
             return page;
         }
 
-        private static void ApplyViewportBackground(Control control, Image image)
+        private static void ApplyViewportBackground(Control control, Image image, bool stretchWhenBeyondImage)
         {
             if (control == null || image == null)
                 return;
@@ -796,17 +796,21 @@ namespace LuxBurn
                 if (target == null)
                     return;
 
-                DrawViewportBackground(e.Graphics, target.ClientRectangle, image);
+                DrawViewportBackground(e.Graphics, target.ClientRectangle, image, stretchWhenBeyondImage);
             };
             control.Resize += delegate { control.Invalidate(); };
         }
 
-        private static void DrawViewportBackground(Graphics graphics, Rectangle bounds, Image image)
+        private static void DrawViewportBackground(Graphics graphics, Rectangle bounds, Image image, bool stretchWhenBeyondImage)
         {
             if (graphics == null || image == null || bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
-            if (bounds.Width > NativeBackgroundLimit.Width || bounds.Height > NativeBackgroundLimit.Height)
+            bool shouldStretch = stretchWhenBeyondImage
+                ? bounds.Width > image.Width || bounds.Height > image.Height
+                : bounds.Width > NativeBackgroundLimit.Width || bounds.Height > NativeBackgroundLimit.Height;
+
+            if (shouldStretch)
             {
                 graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
                 graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;

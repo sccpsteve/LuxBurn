@@ -8,3 +8,5 @@ saved-builds/
 LuxBurn-v*.zip
 LuxBurn-v*-setup.exe
 LuxBurn-v*-portable.zip
+tools/EzPieCalibrator/EzPieCalibrator.exe
+tools/EzPieCalibrator/ez-pie-offsets.txt
