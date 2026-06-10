@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Text;
 using System.IO;
 using System.Net;
 using System.Net.Cache;
@@ -28,9 +27,6 @@ namespace LuxBurn
         private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
-        private readonly PrivateFontCollection _privateFonts;
-        private readonly FontFamily _uiFontFamily;
-
         private ComboBox _driveCombo;
         private ComboBox _burnDriveCombo;
         private ComboBox _buildBurnDriveCombo;
@@ -103,8 +99,6 @@ namespace LuxBurn
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1180, 700);
             Size = new Size(1280, 760);
-            _privateFonts = LoadPrivateFonts();
-            _uiFontFamily = SelectPrivateFontFamily(_privateFonts);
             Font = CreateUiFont(8.25f, FontStyle.Regular);
             BackColor = Color.FromArgb(240, 240, 236);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
@@ -132,58 +126,17 @@ namespace LuxBurn
             EndVisualTransition();
         }
 
-        protected override void Dispose(bool disposing)
-        {
-            base.Dispose(disposing);
-
-            if (disposing && _privateFonts != null)
-                _privateFonts.Dispose();
-        }
-
-        private PrivateFontCollection LoadPrivateFonts()
-        {
-            PrivateFontCollection fonts = new PrivateFontCollection();
-            try
-            {
-                string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Fonts");
-                string regular = Path.Combine(folder, "SegoeTVRegular.TTF");
-                if (!File.Exists(regular))
-                    return fonts;
-
-                foreach (string file in Directory.GetFiles(folder, "*.ttf"))
-                    fonts.AddFontFile(file);
-            }
-            catch (Exception ex)
-            {
-                Log("Custom font load failed: " + ex.Message);
-            }
-
-            return fonts;
-        }
-
-        private static FontFamily SelectPrivateFontFamily(PrivateFontCollection fonts)
-        {
-            if (fonts == null || fonts.Families == null || fonts.Families.Length == 0)
-                return null;
-
-            return fonts.Families[0];
-        }
-
         private Font CreateUiFont(float size, FontStyle style)
         {
             try
             {
-                if (_uiFontFamily != null)
-                {
-                    FontStyle actualStyle = _uiFontFamily.IsStyleAvailable(style) ? style : FontStyle.Regular;
-                    return new Font(_uiFontFamily, size, actualStyle, GraphicsUnit.Point);
-                }
+                return new Font("MS Sans Serif", size, style, GraphicsUnit.Point);
             }
             catch
             {
             }
 
-            return new Font("Tahoma", size, style, GraphicsUnit.Point);
+            return (Font)SystemFonts.MessageBoxFont.Clone();
         }
 
         private void BuildInterface()
@@ -358,7 +311,7 @@ namespace LuxBurn
             burnTabButton.Click += delegate { _tabs.SelectedIndex = 2; };
             parent.Controls.Add(burnTabButton);
 
-            Control copyTabButton = CreateSideButton(326, "Copy", "icon_build.png");
+            Control copyTabButton = CreateSideButton(326, "Copy", "COPY_CUSTOM.png");
             copyTabButton.Click += delegate { _tabs.SelectedIndex = 3; };
             parent.Controls.Add(copyTabButton);
 
@@ -2157,7 +2110,7 @@ namespace LuxBurn
                 MinimizeBox = false;
                 ShowInTaskbar = false;
                 ClientSize = new Size(390, 164);
-                Font = uiFont ?? new Font("Tahoma", 8.25f);
+                Font = uiFont ?? new Font("MS Sans Serif", 8.25f);
 
                 Label heading = new Label();
                 heading.Text = "LuxBurn is out of date!";
@@ -2206,7 +2159,7 @@ namespace LuxBurn
 
             public OperationButton(string caption, Image normalBackground, Image hoverBackground, Image icon, Font font)
             {
-                Font = font ?? new Font("Tahoma", 8.25f, FontStyle.Regular);
+                Font = font ?? new Font("MS Sans Serif", 8.25f, FontStyle.Regular);
                 _normalImage = ComposeButton(normalBackground, icon, caption, Font);
                 _hoverImage = ComposeButton(hoverBackground ?? normalBackground, icon, caption, Font);
 
@@ -2304,7 +2257,7 @@ namespace LuxBurn
             public EzModeWheel(Font font)
             {
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
-                Font = font ?? new Font("Tahoma", 8.25f);
+                Font = font ?? new Font("MS Sans Serif", 8.25f);
                 Size = new Size(400, 380);
                 Cursor = Cursors.Hand;
                 TabStop = false;
@@ -2453,7 +2406,7 @@ namespace LuxBurn
             public NeutralProgressBar()
             {
                 SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-                Font = new Font("Tahoma", 8.25f);
+                Font = new Font("MS Sans Serif", 8.25f);
                 BackColor = Color.FromArgb(238, 238, 234);
                 ForeColor = Color.FromArgb(42, 48, 52);
             }

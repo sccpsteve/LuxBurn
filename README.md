@@ -5,13 +5,13 @@
 # LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.5-blue)]()
+[![Version](https://img.shields.io/badge/version-1.5.6-blue)]()
 
 </div>
 
 ## About
 
-LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.5 is designed to run from Windows XP through Windows 11.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.6 is designed to run from Windows XP through Windows 11.
 
 The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
@@ -35,7 +35,6 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 | EZ Mode | Starts on a visual task picker for build, write, copy, erase, verify, and drive inspection workflows. |
 | Updates | Checks the latest LuxBurn release manifest with cache-busting and opens the official release page when an update is available. |
 | Interface | Uses LuxBurn pane backgrounds and TCC-inspired button/picker assets. |
-| Fonts | Loads bundled Segoe TV fonts privately, falling back to Tahoma when unavailable. |
 | Progress | Shows write progress, buffer, and device buffer. |
 | Abort handling | Aborts backend burns and asks before closing during an active burn. |
 | Verification | Calculates SHA-256, SHA-1, SHA-512, or MD5 checksums. |
@@ -47,8 +46,8 @@ Download the newest build without typing anything:
 
 | Package | Link |
 |:--|:--|
-| Installer | [Download LuxBurn-v1.5.5-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.5-setup.exe) |
-| Portable | [Download LuxBurn-v1.5.5-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.5-portable.zip) |
+| Installer | [Download LuxBurn-v1.5.6-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.6-setup.exe) |
+| Portable | [Download LuxBurn-v1.5.6-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.6-portable.zip) |
 
 The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
 
@@ -87,8 +86,8 @@ package.cmd
 This creates:
 
 ```cmd
-dist\LuxBurn-v1.5.5-portable.zip
-dist\LuxBurn-v1.5.5-setup.exe
+dist\LuxBurn-v1.5.6-portable.zip
+dist\LuxBurn-v1.5.6-setup.exe
 ```
 
 The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
@@ -100,7 +99,6 @@ GitHub Actions also runs `package.cmd` on every push to `main`, so each commit p
 - LuxBurn normally launches without Administrator permissions. If a drive blocks access, try running it as Administrator as a troubleshooting step.
 - CD-R and other write-once media cannot be erased or safely resumed after a failed write.
 - If cdrecord is unavailable, LuxBurn can open Windows Disc Image Burner on Windows versions that include it.
-- LuxBurn publishes SHA-256 hashes in its update manifest, but release binaries are not Authenticode-signed yet.
 - Bundled third-party tools retain their own licenses. See `THIRD-PARTY-NOTICES.txt` in packaged builds.
 
 ## Credits

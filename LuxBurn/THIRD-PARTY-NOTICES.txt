@@ -29,20 +29,3 @@ The bundled native tools retain their own copyrights and licenses. If you
 redistribute LuxBurn publicly, verify that the bundled binaries, matching
 source code, and license/source-offer requirements are satisfied for the exact
 binary builds being distributed.
-
-User-provided Segoe TV font package
------------------------------------
-
-Bundled files:
-
-- Assets\Fonts\SegoeTVRegular.TTF
-- Assets\Fonts\SegoeTVItalic.TTF
-- Assets\Fonts\SegoeTVBold.TTF
-- Assets\Fonts\SegoeTVBoldIt.TTF
-
-LuxBurn loads these fonts privately at runtime and falls back to Tahoma if the
-font files are missing or cannot be loaded.
-
-The font package was supplied as a local project asset. Before public
-redistribution, confirm that the font license permits bundling and redistribution
-with this application.
