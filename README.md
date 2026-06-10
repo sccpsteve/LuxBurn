@@ -34,7 +34,6 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 | Erase discs | Supports fast or full erase for rewritable media such as CD-RW and DVD-RW. |
 | EZ Mode | Starts on a visual task picker for build, write, copy, erase, verify, and drive inspection workflows. |
 | Updates | Checks the latest LuxBurn release manifest with cache-busting and opens the official release page when an update is available. |
-| Interface | Uses LuxBurn pane backgrounds and TCC-inspired button/picker assets. |
 | Progress | Shows write progress, buffer, and device buffer. |
 | Abort handling | Aborts backend burns and asks before closing during an active burn. |
 | Verification | Calculates SHA-256, SHA-1, SHA-512, or MD5 checksums. |
