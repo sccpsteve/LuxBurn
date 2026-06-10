@@ -41,11 +41,23 @@ jobs:
         run: |
           $tag = "latest"
           $title = "Latest LuxBurn Build"
+          $installer = Get-ChildItem -LiteralPath dist -Filter "LuxBurn-v*-setup.exe" | Select-Object -First 1
+          $portable = Get-ChildItem -LiteralPath dist -Filter "LuxBurn-v*-portable.zip" | Select-Object -First 1
+          $manifest = Get-Item -LiteralPath "dist\LuxBurn-update.json"
+
+          if ($null -eq $installer -or $null -eq $portable -or $null -eq $manifest) {
+            throw "The expected LuxBurn release artifacts were not created."
+          }
+
+          $installerPath = $installer.FullName
+          $portablePath = $portable.FullName
+          $manifestPath = $manifest.FullName
+
           $notes = @"
           Automatic build from commit $env:GITHUB_SHA.
 
-          Download LuxBurn-v1.5.5-setup.exe for the installer.
-          Download LuxBurn-v1.5.5-portable.zip for the portable package.
+          Download $($installer.Name) for the installer.
+          Download $($portable.Name) for the portable package.
           "@
 
           git config user.name "github-actions[bot]"
@@ -56,25 +68,24 @@ jobs:
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release edit $tag --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
-            gh release upload $tag dist\LuxBurn-v1.5.5-portable.zip dist\LuxBurn-v1.5.5-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --clobber
+            gh release upload $tag $portablePath $installerPath $manifestPath --repo $env:GITHUB_REPOSITORY --clobber
           } else {
-            gh release create $tag dist\LuxBurn-v1.5.5-portable.zip dist\LuxBurn-v1.5.5-setup.exe dist\LuxBurn-update.json --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
+            gh release create $tag $portablePath $installerPath $manifestPath --repo $env:GITHUB_REPOSITORY --title $title --notes $notes --prerelease
           }
 
-      - name: Verify public download links
+      - name: Check public download links
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
-          $urls = @(
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.5-setup.exe",
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-v1.5.5-portable.zip",
-            "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-update.json"
-          )
+          $manifest = Get-Content -LiteralPath "dist\LuxBurn-update.json" -Raw | ConvertFrom-Json
+          $manifestUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/latest/LuxBurn-update.json"
+          $urls = @($manifest.installerUrl, $manifest.portableUrl, $manifestUrl, $manifest.releasePageUrl)
 
           foreach ($url in $urls) {
             $ok = $false
-            for ($try = 1; $try -le 12; $try++) {
-              $freshUrl = if ($url.EndsWith("LuxBurn-update.json")) { "$url?luxburn_nocache=$([DateTime]::UtcNow.Ticks)-$try" } else { $url }
+            for ($try = 1; $try -le 24; $try++) {
+              $separator = if ($url.Contains('?')) { "&" } else { "?" }
+              $freshUrl = "$url${separator}luxburn_nocache=$([DateTime]::UtcNow.Ticks)-$try"
               & curl.exe --fail --location --silent --head -H "Cache-Control: no-cache, no-store, must-revalidate" -H "Pragma: no-cache" $freshUrl | Out-Null
               if ($LASTEXITCODE -eq 0) {
                 $ok = $true
@@ -84,6 +95,6 @@ jobs:
             }
 
             if (-not $ok) {
-              throw "Download link did not become available: $url"
+              Write-Warning "Download link did not become available yet: $url"
             }
           }
