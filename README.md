@@ -5,13 +5,13 @@
 # LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.5.8-blue)]()
+[![Version](https://img.shields.io/badge/version-1.5.9-blue)]()
 
 </div>
 
 ## About
 
-LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.8 is designed to run from Windows XP through Windows 11.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 1.5.9 is designed to run from Windows XP through Windows 11.
 
 The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
@@ -45,8 +45,8 @@ Download the newest build without typing anything:
 
 | Package | Link |
 |:--|:--|
-| Installer | [Download LuxBurn-v1.5.8-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.8-setup.exe) |
-| Portable | [Download LuxBurn-v1.5.8-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.8-portable.zip) |
+| Installer | [Download LuxBurn-v1.5.9-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.9-setup.exe) |
+| Portable | [Download LuxBurn-v1.5.9-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v1.5.9-portable.zip) |
 
 The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
 
@@ -85,8 +85,8 @@ package.cmd
 This creates:
 
 ```cmd
-dist\LuxBurn-v1.5.8-portable.zip
-dist\LuxBurn-v1.5.8-setup.exe
+dist\LuxBurn-v1.5.9-portable.zip
+dist\LuxBurn-v1.5.9-setup.exe
 ```
 
 The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
@@ -102,9 +102,13 @@ GitHub Actions also runs `package.cmd` on every push to `main`, so each commit p
 
 ## Credits
 
+LuxBurn is created and maintained by Tristan | sccpsteve.com, with coordination help from OpenAI Codex.
+
 LuxBurn began as a Windows-focused remix of SvenGDK's Open Burning Suite and keeps the original BSD 2-Clause licensing.
 
 LuxBurn also takes practical backend and workflow inspiration from CDRTFE, especially around using cdrtools reliably from a Windows interface.
+
+Some logo and icon artwork borrows from Mozilla Firefox Pinstripe theme artwork. Firefox logo artwork is credited to Jon Hicks / Hicksdesign, based on a Daniel Burka concept and Stephen Desroches sketch.
 
 ## License
 

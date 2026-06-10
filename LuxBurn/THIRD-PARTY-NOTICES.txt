@@ -29,3 +29,20 @@ The bundled native tools retain their own copyrights and licenses. If you
 redistribute LuxBurn publicly, verify that the bundled binaries, matching
 source code, and license/source-offer requirements are satisfied for the exact
 binary builds being distributed.
+
+Artwork and coordination credits
+--------------------------------
+
+LuxBurn branding, application artwork, and project direction are credited to:
+
+- Tristan | sccpsteve.com
+
+LuxBurn was coordinated with help from OpenAI Codex.
+
+Some logo and icon artwork borrows from Mozilla Firefox Pinstripe theme
+artwork. Firefox logo artwork is credited to Jon Hicks / Hicksdesign, based on
+a Daniel Burka concept and Stephen Desroches sketch.
+
+LuxBurn also credits SvenGDK's Open Burning Suite, CDRTFE, ImgBurn by
+LIGHTNING UK!, FirmwareHQ, Microsoft IMAPI2/IMAPI2FS, Inno Setup, and 7-Zip
+for project roots, workflow references, tools, APIs, or packaging support.

@@ -291,6 +291,8 @@ namespace LuxBurn
 
             ToolStripMenuItem help = new ToolStripMenuItem("Help");
             help.DropDownItems.Add("Check for Updates...", null, delegate { CheckForUpdates(true); });
+            help.DropDownItems.Add(new ToolStripSeparator());
+            help.DropDownItems.Add("Credits", null, delegate { ShowCreditsDialog(); });
             menu.Items.Add(help);
 
             return menu;
@@ -1912,6 +1914,91 @@ namespace LuxBurn
             {
                 MessageBox.Show(this, "Could not open firmware search: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void ShowCreditsDialog()
+        {
+            using (Form dialog = new Form())
+            {
+                dialog.Text = "Credits";
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false;
+                dialog.MinimizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.ClientSize = new Size(520, 420);
+                dialog.Font = Font;
+
+                PictureBox icon = new PictureBox();
+                icon.Image = LoadBrandAsset("LBWindowLogo.png");
+                icon.Location = new Point(16, 16);
+                icon.Size = new Size(48, 48);
+                icon.SizeMode = PictureBoxSizeMode.CenterImage;
+                dialog.Controls.Add(icon);
+
+                Label heading = new Label();
+                heading.Text = "LuxBurn";
+                heading.Font = CreateUiFont(14f, FontStyle.Bold);
+                heading.Location = new Point(78, 18);
+                heading.Size = new Size(390, 24);
+                dialog.Controls.Add(heading);
+
+                Label version = new Label();
+                version.Text = "Version " + FormatVersion(GetRunningVersion());
+                version.Location = new Point(80, 46);
+                version.Size = new Size(390, 18);
+                dialog.Controls.Add(version);
+
+                TextBox credits = new TextBox();
+                credits.Multiline = true;
+                credits.ReadOnly = true;
+                credits.ScrollBars = ScrollBars.Vertical;
+                credits.Location = new Point(16, 78);
+                credits.Size = new Size(488, 292);
+                credits.Text = BuildCreditsText();
+                dialog.Controls.Add(credits);
+
+                Button ok = new Button();
+                ok.Text = "OK";
+                ok.DialogResult = DialogResult.OK;
+                ok.Location = new Point(414, 382);
+                ok.Size = new Size(90, 26);
+                dialog.Controls.Add(ok);
+
+                dialog.AcceptButton = ok;
+                dialog.CancelButton = ok;
+                dialog.ShowDialog(this);
+            }
+        }
+
+        private static string BuildCreditsText()
+        {
+            StringBuilder text = new StringBuilder();
+            text.AppendLine("LuxBurn");
+            text.AppendLine("Created and maintained by Tristan | sccpsteve.com.");
+            text.AppendLine("Coordinated with OpenAI Codex.");
+            text.AppendLine();
+            text.AppendLine("Project roots");
+            text.AppendLine("- SvenGDK and Open Burning Suite, the original BSD-licensed base.");
+            text.AppendLine("- CDRTFE and its contributors, for practical cdrtools workflow inspiration.");
+            text.AppendLine("- ImgBurn by LIGHTNING UK!, used as a workflow and feature reference.");
+            text.AppendLine();
+            text.AppendLine("Disc and packaging tools");
+            text.AppendLine("- cdrtools by Joerg Schilling and contributors.");
+            text.AppendLine("- Cygwin runtime files by the Cygwin project and contributors.");
+            text.AppendLine("- Inno Setup by Jordan Russell and Martijn Laan.");
+            text.AppendLine("- 7-Zip by Igor Pavlov, used for local package creation.");
+            text.AppendLine("- Microsoft IMAPI2 and IMAPI2FS APIs.");
+            text.AppendLine();
+            text.AppendLine("Artwork");
+            text.AppendLine("- LuxBurn branding and application assets supplied by sccpsteve.");
+            text.AppendLine("- Mozilla Firefox Pinstripe theme artwork and Mozilla contributors.");
+            text.AppendLine("- Firefox logo artwork by Jon Hicks / Hicksdesign, based on a Daniel Burka concept and Stephen Desroches sketch.");
+            text.AppendLine();
+            text.AppendLine("Thanks");
+            text.AppendLine("- FirmwareHQ for drive firmware search pages.");
+            text.AppendLine("- Everyone testing real optical media, especially on older Windows systems.");
+            return text.ToString();
         }
 
         private bool IsLikelySupported(string capability, bool read)
