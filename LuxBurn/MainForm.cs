@@ -23,6 +23,9 @@ namespace LuxBurn
     internal sealed class MainForm : Form
     {
         private const int OperationRailWidth = 252;
+        private static readonly Size DefaultWindowSize = new Size(1280, 760);
+        private static readonly Size CompactMinimumWindowSize = new Size(560, 360);
+        private static readonly Size NativeBackgroundLimit = new Size(2560, 1440);
         private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
         private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
 
@@ -97,8 +100,8 @@ namespace LuxBurn
         {
             Text = "LuxBurn";
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(1180, 700);
-            Size = new Size(1280, 760);
+            MinimumSize = CompactMinimumWindowSize;
+            Size = GetStartupWindowSize();
             Font = CreateUiFont(8.25f, FontStyle.Regular);
             BackColor = Color.FromArgb(240, 240, 236);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
@@ -137,6 +140,20 @@ namespace LuxBurn
             }
 
             return (Font)SystemFonts.MessageBoxFont.Clone();
+        }
+
+        private static Size GetStartupWindowSize()
+        {
+            Rectangle workingArea = Screen.PrimaryScreen == null
+                ? Rectangle.Empty
+                : Screen.PrimaryScreen.WorkingArea;
+
+            if (workingArea.Width <= 0 || workingArea.Height <= 0)
+                return DefaultWindowSize;
+
+            int width = Math.Min(DefaultWindowSize.Width, Math.Max(CompactMinimumWindowSize.Width, workingArea.Width - 32));
+            int height = Math.Min(DefaultWindowSize.Height, Math.Max(CompactMinimumWindowSize.Height, workingArea.Height - 32));
+            return new Size(width, height);
         }
 
         private void BuildInterface()
@@ -282,8 +299,7 @@ namespace LuxBurn
         private void BuildLeftPanel(Control parent)
         {
             parent.BackColor = Color.FromArgb(32, 45, 55);
-            parent.BackgroundImage = LoadUiAsset("LuxburnSidebar1.png");
-            parent.BackgroundImageLayout = ImageLayout.Stretch;
+            ApplyViewportBackground(parent, LoadUiAsset("LuxburnSidebar1.png"));
             parent.Padding = new Padding(12);
 
             Label section = new Label();
@@ -763,10 +779,42 @@ namespace LuxBurn
         {
             TabPage page = new TabPage(text);
             page.BackColor = Color.FromArgb(35, 58, 70);
-            page.BackgroundImage = LoadUiAsset("LuxburnBG1.png");
-            page.BackgroundImageLayout = ImageLayout.Stretch;
+            ApplyViewportBackground(page, LoadUiAsset("BG-1.png"));
             page.Padding = new Padding(10);
             return page;
+        }
+
+        private static void ApplyViewportBackground(Control control, Image image)
+        {
+            if (control == null || image == null)
+                return;
+
+            control.BackgroundImage = null;
+            control.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                Control target = sender as Control;
+                if (target == null)
+                    return;
+
+                DrawViewportBackground(e.Graphics, target.ClientRectangle, image);
+            };
+            control.Resize += delegate { control.Invalidate(); };
+        }
+
+        private static void DrawViewportBackground(Graphics graphics, Rectangle bounds, Image image)
+        {
+            if (graphics == null || image == null || bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            if (bounds.Width > NativeBackgroundLimit.Width || bounds.Height > NativeBackgroundLimit.Height)
+            {
+                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                graphics.DrawImage(image, bounds);
+                return;
+            }
+
+            graphics.DrawImageUnscaled(image, bounds.Location);
         }
 
         private GroupBox CreateGroup(string text, int x, int y, int width, int height)
