@@ -23,16 +23,27 @@ namespace LuxBurn
     internal sealed class MainForm : Form
     {
         private const int OperationRailWidth = 252;
+        private const int CompactOperationRailWidth = 188;
         private static readonly Size DefaultWindowSize = new Size(1280, 760);
         private static readonly Size CompactMinimumWindowSize = new Size(560, 360);
         private static readonly Size NativeBackgroundLimit = new Size(2560, 1440);
+        private static readonly Color ThemeText = Color.FromArgb(244, 248, 250);
+        private static readonly Color ThemeMutedText = Color.FromArgb(210, 224, 232);
+        private static readonly Color ThemeInputBack = Color.FromArgb(26, 40, 50);
+        private static readonly Color ThemeInputBorder = Color.FromArgb(91, 123, 137);
+        private static readonly Color ThemePanelBack = Color.FromArgb(24, 36, 45);
         private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
         private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
+        private readonly ToolTip _toolTip = new ToolTip();
         private ComboBox _driveCombo;
         private ComboBox _burnDriveCombo;
         private ComboBox _buildBurnDriveCombo;
+        private ComboBox _burnSpeedCombo;
+        private ComboBox _burnCopiesCombo;
+        private ComboBox _buildBurnSpeedCombo;
+        private ComboBox _buildBurnCopiesCombo;
         private ListView _driveList;
         private TextBox _buildSourceText;
         private TextBox _buildOutputText;
@@ -102,7 +113,7 @@ namespace LuxBurn
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = CompactMinimumWindowSize;
             Size = GetStartupWindowSize();
-            Font = CreateUiFont(8.25f, FontStyle.Regular);
+            Font = CreateUiFont(9f, FontStyle.Regular);
             BackColor = Color.FromArgb(240, 240, 236);
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
@@ -110,11 +121,40 @@ namespace LuxBurn
             if (windowIcon != null)
                 Icon = windowIcon;
 
+            ConfigureToolTips();
             BuildInterface();
+            ApplyDarkTheme(this);
             RefreshComponentStatus();
             RefreshDrives();
             FormClosing += MainFormFormClosing;
             Shown += delegate { BeginInvoke(new MethodInvoker(delegate { CheckForUpdates(false); })); };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _toolTip.Dispose();
+
+            base.Dispose(disposing);
+        }
+
+        private void ConfigureToolTips()
+        {
+            _toolTip.Active = true;
+            _toolTip.ShowAlways = true;
+            _toolTip.InitialDelay = 450;
+            _toolTip.ReshowDelay = 100;
+            _toolTip.AutoPopDelay = 10000;
+            _toolTip.UseAnimation = false;
+            _toolTip.UseFading = false;
+        }
+
+        private void SetToolTip(Control control, string text)
+        {
+            if (control == null || string.IsNullOrEmpty(text))
+                return;
+
+            _toolTip.SetToolTip(control, text);
         }
 
         protected override void OnResizeBegin(EventArgs e)
@@ -133,7 +173,7 @@ namespace LuxBurn
         {
             try
             {
-                return new Font("MS Sans Serif", size, style, GraphicsUnit.Point);
+                return new Font("Arial", size, style, GraphicsUnit.Point);
             }
             catch
             {
@@ -175,7 +215,7 @@ namespace LuxBurn
             titleLogo.SizeMode = PictureBoxSizeMode.Normal;
             header.Controls.Add(titleLogo);
 
-            _componentStatusLabel = new Label();
+            _componentStatusLabel = new ShadowLabel();
             _componentStatusLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _componentStatusLabel.ForeColor = Color.FromArgb(226, 226, 218);
             _componentStatusLabel.TextAlign = ContentAlignment.MiddleRight;
@@ -202,12 +242,13 @@ namespace LuxBurn
             _mainSplit = new SplitContainer();
             _mainSplit.Dock = DockStyle.Fill;
             _mainSplit.FixedPanel = FixedPanel.Panel1;
-            _mainSplit.Panel1MinSize = OperationRailWidth;
+            _mainSplit.Panel1MinSize = CompactOperationRailWidth;
             _mainSplit.SplitterWidth = 4;
-            _mainSplit.SplitterDistance = OperationRailWidth;
+            _mainSplit.SplitterDistance = GetPreferredOperationRailWidth();
             Controls.Add(_mainSplit);
             _mainSplit.BringToFront();
-            Load += delegate { _mainSplit.SplitterDistance = OperationRailWidth; };
+            Load += delegate { AdjustCompactLayout(); };
+            Resize += delegate { AdjustCompactLayout(); };
 
             BuildLeftPanel(_mainSplit.Panel1);
             BuildTabs(_mainSplit.Panel2);
@@ -301,10 +342,16 @@ namespace LuxBurn
         private void BuildLeftPanel(Control parent)
         {
             parent.BackColor = Color.FromArgb(32, 45, 55);
+            ScrollableControl scrollableParent = parent as ScrollableControl;
+            if (scrollableParent != null)
+            {
+                scrollableParent.AutoScroll = true;
+                scrollableParent.AutoScrollMinSize = new Size(CompactOperationRailWidth, 548);
+            }
             ApplyViewportBackground(parent, LoadUiAsset("LuxburnSidebar2.png"), true);
             parent.Padding = new Padding(12);
 
-            Label section = new Label();
+            Label section = new ShadowLabel();
             section.Text = "Operations";
             section.Font = CreateUiFont(8.25f, FontStyle.Bold);
             section.ForeColor = Color.White;
@@ -344,7 +391,7 @@ namespace LuxBurn
 
         private void BuildTabs(Control parent)
         {
-            _tabs = new TabControl();
+            _tabs = new ThemedTabControl(LoadUiAsset("BG-1.png"));
             _tabs.Dock = DockStyle.Fill;
             _tabs.Padding = new Point(12, 5);
             _tabs.Selecting += delegate { BeginVisualTransition(); };
@@ -378,7 +425,7 @@ namespace LuxBurn
             try
             {
                 if (!hideSidebar)
-                    _mainSplit.SplitterDistance = OperationRailWidth;
+                    _mainSplit.SplitterDistance = GetPreferredOperationRailWidth();
 
                 _mainSplit.Panel1Collapsed = hideSidebar;
             }
@@ -388,6 +435,23 @@ namespace LuxBurn
                 ResumeLayout(true);
                 EndVisualTransitionSoon();
             }
+        }
+
+        private int GetPreferredOperationRailWidth()
+        {
+            return ClientSize.Width <= 760 ? CompactOperationRailWidth : OperationRailWidth;
+        }
+
+        private void AdjustCompactLayout()
+        {
+            if (_mainSplit == null || _mainSplit.Panel1Collapsed)
+                return;
+
+            int desired = GetPreferredOperationRailWidth();
+            int maximum = Math.Max(_mainSplit.Panel1MinSize, _mainSplit.Width - _mainSplit.Panel2MinSize - _mainSplit.SplitterWidth);
+            desired = Math.Min(desired, maximum);
+            if (desired >= _mainSplit.Panel1MinSize && _mainSplit.SplitterDistance != desired)
+                _mainSplit.SplitterDistance = desired;
         }
 
         private void BeginVisualTransition()
@@ -423,6 +487,7 @@ namespace LuxBurn
 
             GroupBox group = CreateGroup("Detected optical drives", 14, 14, 760, 420);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             _driveCombo = new ComboBox();
             _driveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -434,7 +499,7 @@ namespace LuxBurn
             refresh.Click += delegate { RefreshDrives(); };
             group.Controls.Add(refresh);
 
-            _driveList = new ListView();
+            _driveList = new ThemedListView(LoadUiAsset("BG-1.png"));
             _driveList.Location = new Point(18, 68);
             _driveList.Size = new Size(720, 320);
             _driveList.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
@@ -455,6 +520,7 @@ namespace LuxBurn
             TabPage page = CreatePage("Build Image");
             GroupBox group = CreateGroup("Create ISO image from files and folders", 14, 14, 900, 560);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Source path", 18, 32);
             _buildSourceText = CreateTextBox(130, 28, 500);
@@ -486,7 +552,7 @@ namespace LuxBurn
             removeAll.Click += delegate { ClearBuildItems(); };
             group.Controls.Add(removeAll);
 
-            _buildItemList = new ListView();
+            _buildItemList = new ThemedListView(LoadUiAsset("BG-1.png"));
             _buildItemList.Location = new Point(18, 146);
             _buildItemList.Size = new Size(400, 330);
             _buildItemList.View = View.Details;
@@ -500,7 +566,7 @@ namespace LuxBurn
             _buildItemList.DragDrop += BuildItemListDragDrop;
             group.Controls.Add(_buildItemList);
 
-            Label dropHint = new Label();
+            Label dropHint = new ShadowLabel();
             dropHint.Text = "Drop files or folders here";
             dropHint.Location = new Point(18, 480);
             dropHint.Size = new Size(400, 20);
@@ -508,7 +574,7 @@ namespace LuxBurn
             dropHint.ForeColor = Color.FromArgb(72, 72, 72);
             group.Controls.Add(dropHint);
 
-            TabControl imageTabs = new TabControl();
+            TabControl imageTabs = new ThemedTabControl(LoadUiAsset("BG-1.png"));
             imageTabs.Location = new Point(436, 146);
             imageTabs.Size = new Size(420, 330);
             group.Controls.Add(imageTabs);
@@ -539,6 +605,7 @@ namespace LuxBurn
             TabPage page = CreatePage("Burn Image");
             GroupBox group = CreateGroup("Write image to optical media", 14, 14, 760, 430);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Image file", 18, 32);
             _burnImageText = CreateTextBox(130, 28, 500);
@@ -567,30 +634,40 @@ namespace LuxBurn
             _verifyAfterBurnCheck.Size = new Size(320, 22);
             group.Controls.Add(_verifyAfterBurnCheck);
 
-            Label note = new Label();
+            AddLabel(group, "Write speed", 18, 164);
+            _burnSpeedCombo = CreateBurnSpeedCombo(130, 160);
+            SetToolTip(_burnSpeedCombo, "Auto lets cdrecord choose the drive/media default. Numeric values pass speed=N to cdrecord.");
+            group.Controls.Add(_burnSpeedCombo);
+
+            AddLabel(group, "Copies", 350, 164);
+            _burnCopiesCombo = CreateBurnCopiesCombo(412, 160);
+            SetToolTip(_burnCopiesCombo, "For multiple copies, LuxBurn burns one disc at a time and prompts for the next blank disc.");
+            group.Controls.Add(_burnCopiesCombo);
+
+            Label note = new ShadowLabel();
             note.Text = "Burning uses the bundled cdrecord backend. If cdrecord is unavailable, LuxBurn opens Windows Disc Image Burner.";
-            note.Location = new Point(130, 164);
-            note.Size = new Size(560, 36);
+            note.Location = new Point(130, 196);
+            note.Size = new Size(560, 24);
             note.ForeColor = Color.FromArgb(72, 72, 72);
             group.Controls.Add(note);
 
-            AddLabel(group, "Progress", 18, 220);
-            _writeProgress = CreateProgressBar(130, 218, 500);
+            AddLabel(group, "Progress", 18, 236);
+            _writeProgress = CreateProgressBar(130, 234, 500);
             group.Controls.Add(_writeProgress);
 
-            AddLabel(group, "Buffer", 18, 256);
-            _bufferProgress = CreateProgressBar(130, 254, 500);
+            AddLabel(group, "Buffer", 18, 272);
+            _bufferProgress = CreateProgressBar(130, 270, 500);
             group.Controls.Add(_bufferProgress);
 
-            AddLabel(group, "Device buffer", 18, 292);
-            _deviceBufferProgress = CreateProgressBar(130, 290, 500);
+            AddLabel(group, "Device buffer", 18, 308);
+            _deviceBufferProgress = CreateProgressBar(130, 306, 500);
             group.Controls.Add(_deviceBufferProgress);
 
-            _burnButton = CreateButton("Burn image", 130, 344, 120, 29);
+            _burnButton = CreateButton("Burn image", 130, 360, 120, 29);
             _burnButton.Click += delegate { BurnImage(); };
             group.Controls.Add(_burnButton);
 
-            _abortButton = CreateButton("Abort", 262, 344, 90, 29);
+            _abortButton = CreateButton("Abort", 262, 360, 90, 29);
             _abortButton.Enabled = false;
             _abortButton.Click += delegate { AbortBurn(); };
             group.Controls.Add(_abortButton);
@@ -603,6 +680,7 @@ namespace LuxBurn
             TabPage page = CreatePage("Erase");
             GroupBox group = CreateGroup("Erase rewritable optical media", 14, 14, 760, 220);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Target drive", 18, 32);
             _eraseDriveCombo = new ComboBox();
@@ -617,7 +695,7 @@ namespace LuxBurn
             _fullEraseCheck.Size = new Size(150, 22);
             group.Controls.Add(_fullEraseCheck);
 
-            Label note = new Label();
+            Label note = new ShadowLabel();
             note.Text = "Erase works on rewritable discs such as CD-RW and DVD-RW. CD-R cannot be erased.";
             note.Location = new Point(130, 100);
             note.Size = new Size(560, 36);
@@ -636,6 +714,7 @@ namespace LuxBurn
             TabPage page = CreatePage("Copy Disc");
             GroupBox group = CreateGroup("Copy optical media to image", 14, 14, 760, 310);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Source drive", 18, 32);
             _copyDriveCombo = new ComboBox();
@@ -662,7 +741,7 @@ namespace LuxBurn
             _verifyAfterCopyCheck.Size = new Size(220, 22);
             group.Controls.Add(_verifyAfterCopyCheck);
 
-            Label note = new Label();
+            Label note = new ShadowLabel();
             note.Text = "Copies standard data discs to ISO-style images using the bundled readcd backend.";
             note.Location = new Point(130, 136);
             note.Size = new Size(560, 48);
@@ -690,6 +769,7 @@ namespace LuxBurn
             TabPage page = CreatePage("Verify");
             GroupBox group = CreateGroup("Checksum verification", 14, 14, 760, 280);
             page.Controls.Add(group);
+            BindWorkspaceGroup(page, group);
 
             AddLabel(group, "File", 18, 32);
             _verifyFileText = CreateTextBox(130, 28, 500);
@@ -733,7 +813,7 @@ namespace LuxBurn
             surface.BackColor = Color.Transparent;
             page.Controls.Add(surface);
 
-            Label heading = new Label();
+            Label heading = new ShadowLabel();
             heading.Text = "EZ Mode Picker";
             heading.Font = CreateUiFont(18f, FontStyle.Bold);
             heading.ForeColor = Color.White;
@@ -742,7 +822,7 @@ namespace LuxBurn
             heading.Size = new Size(420, 36);
             surface.Controls.Add(heading);
 
-            Label intro = new Label();
+            Label intro = new ShadowLabel();
             intro.Text = "Choose the job and LuxBurn will open the matching workspace.";
             intro.Location = new Point(38, 64);
             intro.Size = new Size(520, 24);
@@ -783,6 +863,40 @@ namespace LuxBurn
             page.BackColor = Color.FromArgb(35, 58, 70);
             ApplyViewportBackground(page, LoadUiAsset("BG-1.png"), false);
             page.Padding = new Padding(10);
+            page.AutoScroll = true;
+            page.AutoScrollMargin = new Size(14, 14);
+            return page;
+        }
+
+        private void BindWorkspaceGroup(TabPage page, Control workspace)
+        {
+            if (page == null || workspace == null)
+                return;
+
+            int minWidth = workspace.Width;
+            int minHeight = workspace.Height;
+            workspace.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            SizeWorkspaceForViewport(page, workspace, minWidth, minHeight);
+            page.Resize += delegate { SizeWorkspaceForViewport(page, workspace, minWidth, minHeight); };
+        }
+
+        private static void SizeWorkspaceForViewport(TabPage page, Control workspace, int minWidth, int minHeight)
+        {
+            if (page == null || workspace == null)
+                return;
+
+            int availableWidth = page.ClientSize.Width - workspace.Left - 24;
+            int availableHeight = page.ClientSize.Height - workspace.Top - 24;
+            workspace.Size = new Size(Math.Max(minWidth, availableWidth), Math.Max(minHeight, availableHeight));
+            page.AutoScrollMinSize = new Size(workspace.Left + minWidth + 18, workspace.Top + minHeight + 18);
+        }
+
+        private TabPage CreatePanePage(string text)
+        {
+            TabPage page = new TabPage(text);
+            page.UseVisualStyleBackColor = false;
+            page.BackColor = Color.Transparent;
+            ApplyViewportBackground(page, LoadUiAsset("BG-1.png"), false);
             return page;
         }
 
@@ -823,14 +937,339 @@ namespace LuxBurn
             graphics.DrawImageUnscaled(image, bounds.Location);
         }
 
+        private void ApplyDarkTheme(Control root)
+        {
+            if (root == null)
+                return;
+
+            if (root is ShadowLabel)
+            {
+                root.ForeColor = ThemeText;
+                root.BackColor = Color.Transparent;
+            }
+            else if (root is Label)
+            {
+                root.ForeColor = ThemeText;
+                root.BackColor = Color.Transparent;
+                ApplyLabelTextShadow((Label)root);
+            }
+            else if (root is GroupBox)
+            {
+                root.ForeColor = ThemeText;
+                root.BackColor = Color.Transparent;
+                ApplyGroupBoxTextShadow((GroupBox)root);
+            }
+            else if (root is TabPage)
+            {
+                TabPage page = (TabPage)root;
+                page.ForeColor = ThemeText;
+                page.UseVisualStyleBackColor = false;
+                if (page.BackgroundImage == null)
+                    page.BackColor = Color.Transparent;
+            }
+            else if (root is CheckBox || root is RadioButton)
+            {
+                root.ForeColor = ThemeText;
+                root.BackColor = Color.Transparent;
+            }
+            else if (root is TextBox)
+            {
+                TextBox textBox = (TextBox)root;
+                textBox.BackColor = ThemeInputBack;
+                textBox.ForeColor = ThemeText;
+                textBox.BorderStyle = BorderStyle.FixedSingle;
+            }
+            else if (root is ComboBox)
+            {
+                ComboBox combo = (ComboBox)root;
+                combo.BackColor = ThemeInputBack;
+                combo.ForeColor = ThemeText;
+                combo.FlatStyle = FlatStyle.Flat;
+            }
+            else if (root is ListView)
+            {
+                StyleListView((ListView)root);
+            }
+            else if (root is TabControl)
+            {
+                TabControl tabs = (TabControl)root;
+                tabs.ForeColor = ThemeText;
+                tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
+                tabs.DrawItem += DrawThemeTab;
+            }
+            else if (root is Button)
+            {
+                StyleAssetButton((Button)root);
+            }
+            else if (root is OperationButton)
+            {
+                root.ForeColor = ThemeText;
+            }
+            foreach (Control child in root.Controls)
+                ApplyDarkTheme(child);
+        }
+
+        private void StyleAssetButton(Button button)
+        {
+            if (button == null || string.Equals(button.Tag as string, "asset-button", StringComparison.Ordinal))
+                return;
+
+            Image normal = LoadUiAsset("but_108x32.png");
+            Image hover = LoadUiAsset("but_108x32_O.png");
+            button.Tag = "asset-button";
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseDownBackColor = Color.Transparent;
+            button.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            button.BackColor = Color.Transparent;
+            button.ForeColor = Color.Transparent;
+            button.BackgroundImageLayout = ImageLayout.Stretch;
+            button.BackgroundImage = normal;
+            button.Cursor = Cursors.Hand;
+
+            button.MouseEnter += delegate
+            {
+                if (button.Enabled && hover != null)
+                    button.BackgroundImage = hover;
+            };
+            button.MouseLeave += delegate
+            {
+                button.BackgroundImage = normal;
+            };
+            button.EnabledChanged += delegate
+            {
+                button.ForeColor = Color.Transparent;
+                button.BackgroundImage = normal;
+            };
+            button.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                Button painted = sender as Button;
+                if (painted == null || string.IsNullOrEmpty(painted.Text))
+                    return;
+
+                DrawShadowedText(e.Graphics, painted.Text, painted.Font, painted.ClientRectangle, painted.Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            };
+        }
+
+        private static void StyleListView(ListView list)
+        {
+            if (list == null)
+                return;
+
+            list.BackColor = Color.FromArgb(18, 30, 38);
+            list.ForeColor = ThemeText;
+            list.GridLines = false;
+            list.BorderStyle = BorderStyle.FixedSingle;
+            if (list.OwnerDraw)
+                return;
+
+            list.OwnerDraw = true;
+            list.DrawColumnHeader += DrawThemeListHeader;
+            list.DrawItem += DrawThemeListItem;
+            list.DrawSubItem += DrawThemeListSubItem;
+        }
+
+        private static void DrawThemeListHeader(object sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (Brush brush = new SolidBrush(Color.FromArgb(20, 36, 48)))
+                e.Graphics.FillRectangle(brush, e.Bounds);
+            using (Pen pen = new Pen(Color.FromArgb(72, 104, 120)))
+                e.Graphics.DrawRectangle(pen, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
+
+            Rectangle textBounds = new Rectangle(e.Bounds.X + 5, e.Bounds.Y, Math.Max(1, e.Bounds.Width - 8), e.Bounds.Height);
+            DrawShadowedText(e.Graphics, e.Header.Text, SystemFonts.MessageBoxFont, textBounds, ThemeText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
+        private static void DrawThemeListItem(object sender, DrawListViewItemEventArgs e)
+        {
+            ListView list = sender as ListView;
+            if (list == null || list.View == View.Details)
+                return;
+
+            ThemedListView themedList = list as ThemedListView;
+            if (themedList != null && !e.Item.Selected)
+                themedList.PaintThemeBackground(e.Graphics, e.Bounds);
+            else
+            {
+                Color fill = e.Item.Selected ? Color.FromArgb(48, 92, 116) : list.BackColor;
+                using (Brush brush = new SolidBrush(fill))
+                    e.Graphics.FillRectangle(brush, e.Bounds);
+            }
+
+            Rectangle textBounds = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, Math.Max(1, e.Bounds.Width - 8), e.Bounds.Height);
+            DrawShadowedText(e.Graphics, e.Item.Text, list.Font, textBounds, ThemeText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
+        private static void DrawThemeListSubItem(object sender, DrawListViewSubItemEventArgs e)
+        {
+            ListView list = sender as ListView;
+            if (list == null)
+                return;
+
+            ThemedListView themedList = list as ThemedListView;
+            if (themedList != null && !e.Item.Selected)
+                themedList.PaintThemeBackground(e.Graphics, e.Bounds);
+            else
+            {
+                Color fill = e.Item.Selected ? Color.FromArgb(48, 92, 116) : list.BackColor;
+                using (Brush brush = new SolidBrush(fill))
+                    e.Graphics.FillRectangle(brush, e.Bounds);
+            }
+
+            string text = e.SubItem == null ? string.Empty : e.SubItem.Text;
+            Rectangle textBounds = new Rectangle(e.Bounds.X + 5, e.Bounds.Y, Math.Max(1, e.Bounds.Width - 8), e.Bounds.Height);
+            DrawShadowedText(e.Graphics, text, list.Font, textBounds, ThemeText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
+        private static void ApplyLabelTextShadow(Label label)
+        {
+            if (label == null)
+                return;
+
+            label.ForeColor = Color.Transparent;
+            label.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                Label painted = sender as Label;
+                if (painted == null || string.IsNullOrEmpty(painted.Text))
+                    return;
+
+                DrawShadowedText(e.Graphics, painted.Text, painted.Font, painted.ClientRectangle, ThemeText, GetLabelTextFlags(painted.TextAlign));
+            };
+        }
+
+        private static void ApplyGroupBoxTextShadow(GroupBox group)
+        {
+            if (group == null)
+                return;
+
+            string originalText = group.Tag as string;
+            if (string.IsNullOrEmpty(originalText))
+                originalText = group.Text;
+            Image barImage = LoadUiAsset("BAR1.png");
+            group.Text = string.Empty;
+            group.Paint += delegate(object sender, PaintEventArgs e)
+            {
+                GroupBox painted = sender as GroupBox;
+                if (painted == null || string.IsNullOrEmpty(originalText))
+                    return;
+
+                if (barImage != null)
+                    e.Graphics.DrawImageUnscaled(barImage, 8, 0);
+
+                Rectangle textBounds = barImage == null
+                    ? new Rectangle(8, 0, Math.Max(1, painted.Width - 16), 18)
+                    : new Rectangle(15, 5, Math.Max(1, barImage.Width - 20), Math.Max(1, barImage.Height - 9));
+
+                using (Font titleFont = new Font("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point))
+                    DrawAliasedShadowedText(e.Graphics, originalText, titleFont, textBounds, ThemeText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            };
+        }
+
+        private static TextFormatFlags GetLabelTextFlags(ContentAlignment alignment)
+        {
+            TextFormatFlags flags = TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix;
+
+            if (alignment == ContentAlignment.TopCenter || alignment == ContentAlignment.MiddleCenter || alignment == ContentAlignment.BottomCenter)
+                flags |= TextFormatFlags.HorizontalCenter;
+            else if (alignment == ContentAlignment.TopRight || alignment == ContentAlignment.MiddleRight || alignment == ContentAlignment.BottomRight)
+                flags |= TextFormatFlags.Right;
+            else
+                flags |= TextFormatFlags.Left;
+
+            if (alignment == ContentAlignment.MiddleLeft || alignment == ContentAlignment.MiddleCenter || alignment == ContentAlignment.MiddleRight)
+                flags |= TextFormatFlags.VerticalCenter;
+            else if (alignment == ContentAlignment.BottomLeft || alignment == ContentAlignment.BottomCenter || alignment == ContentAlignment.BottomRight)
+                flags |= TextFormatFlags.Bottom;
+            else
+                flags |= TextFormatFlags.Top;
+
+            return flags;
+        }
+
+        private static void DrawShadowedText(Graphics graphics, string text, Font font, Rectangle bounds, Color color, TextFormatFlags flags)
+        {
+            DrawAliasedShadowedText(graphics, text, font, bounds, color, flags);
+        }
+
+        private static void DrawPlainText(Graphics graphics, string text, Font font, Rectangle bounds, Color color, TextFormatFlags flags)
+        {
+            if (graphics == null || string.IsNullOrEmpty(text) || font == null)
+                return;
+
+            TextRenderer.DrawText(graphics, text, font, bounds, color, NormalizeTextFlags(flags));
+        }
+
+        private static void DrawAliasedShadowedText(Graphics graphics, string text, Font font, Rectangle bounds, Color color, TextFormatFlags flags)
+        {
+            if (graphics == null || string.IsNullOrEmpty(text) || font == null)
+                return;
+
+            TextFormatFlags drawFlags = NormalizeTextFlags(flags);
+            Rectangle shadow = new Rectangle(bounds.X + 1, bounds.Y + 1, bounds.Width, bounds.Height);
+            TextRenderer.DrawText(graphics, text, font, shadow, Color.Black, drawFlags);
+            TextRenderer.DrawText(graphics, text, font, bounds, color, drawFlags);
+        }
+
+        private static TextFormatFlags NormalizeTextFlags(TextFormatFlags flags)
+        {
+            TextFormatFlags drawFlags = flags | TextFormatFlags.NoPadding;
+            if ((flags & TextFormatFlags.EndEllipsis) == TextFormatFlags.EndEllipsis)
+                drawFlags |= TextFormatFlags.SingleLine;
+            return drawFlags;
+        }
+
+        private static StringFormat CreateStringFormat(TextFormatFlags flags)
+        {
+            StringFormat format = new StringFormat();
+            format.Trimming = StringTrimming.EllipsisCharacter;
+            format.FormatFlags = StringFormatFlags.NoWrap;
+
+            if ((flags & TextFormatFlags.HorizontalCenter) == TextFormatFlags.HorizontalCenter)
+                format.Alignment = StringAlignment.Center;
+            else if ((flags & TextFormatFlags.Right) == TextFormatFlags.Right)
+                format.Alignment = StringAlignment.Far;
+            else
+                format.Alignment = StringAlignment.Near;
+
+            if ((flags & TextFormatFlags.VerticalCenter) == TextFormatFlags.VerticalCenter)
+                format.LineAlignment = StringAlignment.Center;
+            else if ((flags & TextFormatFlags.Bottom) == TextFormatFlags.Bottom)
+                format.LineAlignment = StringAlignment.Far;
+            else
+                format.LineAlignment = StringAlignment.Near;
+
+            return format;
+        }
+
+        private static void DrawThemeTab(object sender, DrawItemEventArgs e)
+        {
+            TabControl tabs = sender as TabControl;
+            if (tabs == null || e.Index < 0 || e.Index >= tabs.TabPages.Count)
+                return;
+
+            bool selected = e.Index == tabs.SelectedIndex;
+            Rectangle bounds = e.Bounds;
+            Rectangle fillBounds = bounds;
+            fillBounds.Inflate(1, 1);
+            Color fill = selected ? Color.FromArgb(33, 64, 80) : Color.FromArgb(20, 36, 48);
+            Color border = selected ? Color.FromArgb(26, 56, 72) : Color.FromArgb(12, 28, 40);
+            using (Brush brush = new SolidBrush(fill))
+                e.Graphics.FillRectangle(brush, fillBounds);
+            using (Pen pen = new Pen(border))
+                e.Graphics.DrawRectangle(pen, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+
+            DrawShadowedText(e.Graphics, tabs.TabPages[e.Index].Text, tabs.Font, bounds, ThemeText, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        }
+
         private GroupBox CreateGroup(string text, int x, int y, int width, int height)
         {
             GroupBox group = new GroupBox();
             group.Text = text;
+            group.Tag = text;
             group.Location = new Point(x, y);
             group.Size = new Size(width, height);
             group.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            group.BackColor = Color.FromArgb(248, 248, 245);
+            group.BackColor = Color.Transparent;
             return group;
         }
 
@@ -854,11 +1293,12 @@ namespace LuxBurn
 
         private Label CreateNoteLabel(string text, int x, int y, int width, int height)
         {
-            Label label = new Label();
+            Label label = new ShadowLabel();
             label.Text = text;
             label.Location = new Point(x, y);
             label.Size = new Size(width, height);
             label.ForeColor = Color.FromArgb(72, 72, 72);
+            SetToolTip(label, text);
             return label;
         }
 
@@ -867,7 +1307,7 @@ namespace LuxBurn
             OperationButton button = new OperationButton(
                 caption,
                 LoadUiAsset("but_145x65.png"),
-                LoadUiAsset("but_145x65.png"),
+                LoadUiAsset("but_145x65_O.png"),
                 LoadButtonAsset(iconName),
                 CreateUiFont(8.25f, FontStyle.Regular));
             button.Location = new Point(34, top);
@@ -883,18 +1323,19 @@ namespace LuxBurn
             return textBox;
         }
 
-        private void AddLabel(Control parent, string text, int x, int y)
+        private Label AddLabel(Control parent, string text, int x, int y)
         {
-            Label label = new Label();
+            Label label = new ShadowLabel();
             label.Text = text;
             label.Location = new Point(x, y);
             label.Size = new Size(100, 18);
             parent.Controls.Add(label);
+            return label;
         }
 
         private TabPage CreateBuildInfoPage()
         {
-            TabPage page = new TabPage("Information");
+            TabPage page = CreatePanePage("Information");
             AddInfoRow(page, "Number of Files:", _buildFileCountLabel = CreateInfoValueLabel(), 18, 24);
             AddInfoRow(page, "Number of Folders:", _buildFolderCountLabel = CreateInfoValueLabel(), 18, 48);
             AddInfoRow(page, "Total File Size:", _buildTotalSizeLabel = CreateInfoValueLabel(), 18, 86);
@@ -917,7 +1358,7 @@ namespace LuxBurn
 
         private TabPage CreateBuildDevicePage()
         {
-            TabPage page = new TabPage("Device");
+            TabPage page = CreatePanePage("Device");
             TextBox info = new TextBox();
             info.Multiline = true;
             info.ReadOnly = true;
@@ -930,59 +1371,48 @@ namespace LuxBurn
             AddLabel(page, "Target Drive:", 10, 204);
             _buildBurnDriveCombo = new ComboBox();
             _buildBurnDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-            _buildBurnDriveCombo.Location = new Point(96, 200);
-            _buildBurnDriveCombo.Size = new Size(286, 22);
+            _buildBurnDriveCombo.Location = new Point(126, 200);
+            _buildBurnDriveCombo.Size = new Size(256, 22);
             page.Controls.Add(_buildBurnDriveCombo);
 
             AddLabel(page, "Write Speed:", 10, 240);
-            ComboBox speed = new ComboBox();
-            speed.DropDownStyle = ComboBoxStyle.DropDownList;
-            speed.Items.AddRange(new object[] { "AWS", "MAX", "16x", "8x", "4x" });
-            speed.SelectedIndex = 0;
-            speed.Location = new Point(96, 236);
-            speed.Size = new Size(92, 22);
-            speed.Enabled = false;
-            page.Controls.Add(speed);
+            _buildBurnSpeedCombo = CreateBurnSpeedCombo(126, 236);
+            SetToolTip(_buildBurnSpeedCombo, "Auto lets cdrecord choose the drive/media default. Numeric values pass speed=N to cdrecord.");
+            page.Controls.Add(_buildBurnSpeedCombo);
 
             AddLabel(page, "Copies:", 10, 268);
-            ComboBox copies = new ComboBox();
-            copies.DropDownStyle = ComboBoxStyle.DropDownList;
-            copies.Items.AddRange(new object[] { "1", "2", "3", "4", "5" });
-            copies.SelectedIndex = 0;
-            copies.Location = new Point(96, 264);
-            copies.Size = new Size(92, 22);
-            copies.Enabled = false;
-            page.Controls.Add(copies);
-
-            Label note = CreateNoteLabel("Speed and copy count are not applied by the current ISO builder.", 200, 238, 180, 42);
-            page.Controls.Add(note);
+            _buildBurnCopiesCombo = CreateBurnCopiesCombo(126, 264);
+            SetToolTip(_buildBurnCopiesCombo, "For multiple copies, LuxBurn burns one disc at a time and prompts for the next blank disc.");
+            page.Controls.Add(_buildBurnCopiesCombo);
             return page;
         }
 
         private TabPage CreateBuildOptionsPage()
         {
-            TabPage page = new TabPage("Options");
+            TabPage page = CreatePanePage("Options");
             AddLabel(page, "Data Type:", 18, 28);
             _buildDataTypeCombo = CreateDropDown(146, 24, 150, new object[] { "MODE1/2048", "MODE2/2336" });
-            _buildDataTypeCombo.Enabled = false;
+            MakeReadOnlyCombo(_buildDataTypeCombo);
+            SetToolTip(_buildDataTypeCombo, "IMAPI2FS currently builds data images with its automatic data mode.");
             page.Controls.Add(_buildDataTypeCombo);
 
             AddLabel(page, "File System:", 18, 56);
             _buildFileSystemCombo = CreateDropDown(146, 52, 150, new object[] { "ISO9660 + UDF", "ISO9660 + Joliet + UDF", "ISO9660", "UDF" });
             _buildFileSystemCombo.SelectedIndex = 1;
-            _buildFileSystemCombo.Enabled = false;
+            MakeReadOnlyCombo(_buildFileSystemCombo);
+            SetToolTip(_buildFileSystemCombo, "IMAPI2FS currently builds the file systems automatically.");
             page.Controls.Add(_buildFileSystemCombo);
 
             AddLabel(page, "UDF Revision:", 18, 84);
             _buildUdfRevisionCombo = CreateDropDown(146, 80, 90, new object[] { "1.02", "1.50", "2.00", "2.01" });
-            _buildUdfRevisionCombo.Enabled = false;
+            MakeReadOnlyCombo(_buildUdfRevisionCombo);
+            SetToolTip(_buildUdfRevisionCombo, "IMAPI2FS currently chooses the applied UDF revision automatically.");
             page.Controls.Add(_buildUdfRevisionCombo);
 
-            Label imapiNote = CreateNoteLabel("IMAPI2FS currently builds ISO9660/Joliet/UDF automatically.", 248, 80, 150, 42);
-            page.Controls.Add(imapiNote);
-
-            AddLabel(page, "Folder Placement:", 18, 114);
-            _folderPlacementCombo = CreateDropDown(146, 110, 220, new object[] { "Put folder contents at disc root", "Keep selected folders as folders" });
+            Label folderLabel = AddLabel(page, "Folder Placement:", 18, 114);
+            SetToolTip(folderLabel, "Disc root puts the selected folder contents at the top of the disc. Keep folders preserves each selected folder as a folder.");
+            _folderPlacementCombo = CreateDropDown(146, 110, 246, new object[] { "Disc root", "Keep folders" });
+            SetToolTip(_folderPlacementCombo, "Disc root puts the selected folder contents at the top of the disc. Keep folders preserves each selected folder as a folder.");
             page.Controls.Add(_folderPlacementCombo);
 
             _preservePathsCheck = CreateCheckBox("Preserve Full Pathnames", 18, 148, false);
@@ -1009,22 +1439,22 @@ namespace LuxBurn
 
         private TabPage CreateBuildLabelsPage()
         {
-            TabPage page = new TabPage("Labels");
+            TabPage page = CreatePanePage("Labels");
             AddLabel(page, "ISO9660:", 18, 28);
-            _iso9660LabelText = CreateTextBox(96, 24, 185);
+            _iso9660LabelText = CreateTextBox(126, 24, 185);
             _iso9660LabelText.ReadOnly = true;
             page.Controls.Add(_iso9660LabelText);
             AddLabel(page, "Joliet:", 18, 56);
-            _jolietLabelText = CreateTextBox(96, 52, 185);
+            _jolietLabelText = CreateTextBox(126, 52, 185);
             _jolietLabelText.ReadOnly = true;
             page.Controls.Add(_jolietLabelText);
             AddLabel(page, "UDF:", 18, 84);
-            _udfLabelText = CreateTextBox(96, 80, 185);
+            _udfLabelText = CreateTextBox(126, 80, 185);
             _udfLabelText.ReadOnly = true;
             page.Controls.Add(_udfLabelText);
 
             _syncLabelsCheck = CreateCheckBox("Synchronised Editing", 18, 118, true);
-            _syncLabelsCheck.Enabled = false;
+            MakeReadOnlyCheck(_syncLabelsCheck);
             page.Controls.Add(_syncLabelsCheck);
             _iso9660LabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_iso9660LabelText.Text); };
             _jolietLabelText.TextChanged += delegate { if (_syncLabelsCheck.Checked) SynchronizeVolumeLabels(_jolietLabelText.Text); };
@@ -1058,33 +1488,32 @@ namespace LuxBurn
 
         private TabPage CreateBuildAdvancedPage()
         {
-            TabPage page = new TabPage("Advanced");
-            TabControl advanced = new TabControl();
+            TabPage page = CreatePanePage("Advanced");
+            TabControl advanced = new ThemedTabControl(LoadUiAsset("BG-1.png"));
             advanced.Location = new Point(8, 8);
             advanced.Size = new Size(390, 294);
-            advanced.Enabled = false;
             page.Controls.Add(advanced);
             page.Controls.Add(CreateNoteLabel("Advanced date, restriction, and boot options are disabled until LuxBurn routes builds through a backend that applies them.", 12, 306, 370, 32));
 
-            TabPage dates = new TabPage("Dates");
-            dates.Controls.Add(CreateCheckBox("Creation:", 18, 24, false));
-            dates.Controls.Add(CreateCheckBox("Modified:", 18, 52, false));
-            dates.Controls.Add(CreateCheckBox("Effective:", 18, 80, false));
-            dates.Controls.Add(CreateCheckBox("Expiration:", 18, 108, false));
-            dates.Controls.Add(CreateRadioButton("Use File Date && Time", 18, 156, true));
-            dates.Controls.Add(CreateRadioButton("Use System Date && Time", 18, 180, false));
-            dates.Controls.Add(CreateRadioButton("Use Custom Date && Time", 18, 204, false));
+            TabPage dates = CreatePanePage("Dates");
+            dates.Controls.Add(CreateReadOnlyCheckBox("Creation:", 18, 24, false));
+            dates.Controls.Add(CreateReadOnlyCheckBox("Modified:", 18, 52, false));
+            dates.Controls.Add(CreateReadOnlyCheckBox("Effective:", 18, 80, false));
+            dates.Controls.Add(CreateReadOnlyCheckBox("Expiration:", 18, 108, false));
+            dates.Controls.Add(CreateReadOnlyRadioButton("Use File Date && Time", 18, 156, true));
+            dates.Controls.Add(CreateReadOnlyRadioButton("Use System Date && Time", 18, 180, false));
+            dates.Controls.Add(CreateReadOnlyRadioButton("Use Custom Date && Time", 18, 204, false));
             advanced.TabPages.Add(dates);
 
-            TabPage restrictions = new TabPage("Restrictions");
-            restrictions.Controls.Add(CreateCheckBox("Allow more than 8 directory levels", 18, 24, true));
-            restrictions.Controls.Add(CreateCheckBox("Allow files without extensions", 18, 52, true));
-            restrictions.Controls.Add(CreateCheckBox("Allow long file names", 18, 80, true));
-            restrictions.Controls.Add(CreateCheckBox("Use relaxed ISO9660 character set", 18, 108, false));
+            TabPage restrictions = CreatePanePage("Restrictions");
+            restrictions.Controls.Add(CreateReadOnlyCheckBox("Allow more than 8 directory levels", 18, 24, true));
+            restrictions.Controls.Add(CreateReadOnlyCheckBox("Allow files without extensions", 18, 52, true));
+            restrictions.Controls.Add(CreateReadOnlyCheckBox("Allow long file names", 18, 80, true));
+            restrictions.Controls.Add(CreateReadOnlyCheckBox("Use relaxed ISO9660 character set", 18, 108, false));
             advanced.TabPages.Add(restrictions);
 
-            TabPage boot = new TabPage("Bootable Disc");
-            boot.Controls.Add(CreateCheckBox("Make Image Bootable", 18, 24, false));
+            TabPage boot = CreatePanePage("Bootable Disc");
+            boot.Controls.Add(CreateReadOnlyCheckBox("Make Image Bootable", 18, 24, false));
             AddLabel(boot, "Boot Image:", 18, 62);
             TextBox bootImage = CreateTextBox(96, 58, 210);
             boot.Controls.Add(bootImage);
@@ -1097,7 +1526,8 @@ namespace LuxBurn
 
         private Label CreateInfoValueLabel()
         {
-            Label label = new Label();
+            ShadowLabel label = new ShadowLabel();
+            label.UseShadow = false;
             label.Text = "Unknown";
             label.Size = new Size(180, 18);
             return label;
@@ -1105,8 +1535,12 @@ namespace LuxBurn
 
         private void AddInfoRow(Control parent, string caption, Label value, int x, int y)
         {
-            AddLabel(parent, caption, x, y);
-            value.Location = new Point(x + 118, y);
+            Label captionLabel = new ShadowLabel();
+            captionLabel.Text = caption;
+            captionLabel.Location = new Point(x, y);
+            captionLabel.Size = new Size(136, 18);
+            parent.Controls.Add(captionLabel);
+            value.Location = new Point(x + 150, y);
             parent.Controls.Add(value);
         }
 
@@ -1121,10 +1555,86 @@ namespace LuxBurn
             return combo;
         }
 
+        private ComboBox CreateBurnSpeedCombo(int x, int y)
+        {
+            ComboBox combo = CreateDropDown(x, y, 92, new object[] { "Auto", "Max", "48x", "40x", "32x", "24x", "16x", "8x", "4x" });
+            combo.SelectedIndexChanged += delegate
+            {
+                SynchronizeComboSelection(combo, combo == _burnSpeedCombo ? _buildBurnSpeedCombo : _burnSpeedCombo);
+            };
+            return combo;
+        }
+
+        private ComboBox CreateBurnCopiesCombo(int x, int y)
+        {
+            ComboBox combo = CreateDropDown(x, y, 64, new object[] { "1", "2", "3", "4", "5" });
+            combo.SelectedIndexChanged += delegate
+            {
+                SynchronizeComboSelection(combo, combo == _burnCopiesCombo ? _buildBurnCopiesCombo : _burnCopiesCombo);
+            };
+            return combo;
+        }
+
+        private static void SynchronizeComboSelection(ComboBox source, ComboBox target)
+        {
+            if (source == null || target == null || source.SelectedIndex < 0 || target.SelectedIndex == source.SelectedIndex)
+                return;
+
+            if (source.SelectedIndex < target.Items.Count)
+                target.SelectedIndex = source.SelectedIndex;
+        }
+
+        private static string GetSelectedBurnSpeed(ComboBox combo)
+        {
+            if (combo == null || combo.SelectedItem == null)
+                return "Auto";
+
+            return Convert.ToString(combo.SelectedItem);
+        }
+
+        private static int GetSelectedBurnCopies(ComboBox combo)
+        {
+            if (combo == null || combo.SelectedItem == null)
+                return 1;
+
+            int copies;
+            return int.TryParse(Convert.ToString(combo.SelectedItem), out copies) && copies > 0 ? copies : 1;
+        }
+
+        private bool ConfirmNextBurnCopy(int copyNumber, int totalCopies)
+        {
+            if (InvokeRequired)
+                return (bool)Invoke(new Func<int, int, bool>(ConfirmNextBurnCopy), copyNumber, totalCopies);
+
+            string message = "Insert a blank disc for copy " + copyNumber + " of " + totalCopies + ", then click OK.";
+            return MessageBox.Show(this, message, Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
+        }
+
+        private static void MakeReadOnlyCombo(ComboBox combo)
+        {
+            if (combo == null)
+                return;
+
+            combo.TabStop = false;
+            combo.DropDown += delegate { combo.DroppedDown = false; };
+            combo.KeyDown += delegate(object sender, KeyEventArgs e) { e.SuppressKeyPress = true; };
+            combo.MouseWheel += delegate(object sender, MouseEventArgs e)
+            {
+                HandledMouseEventArgs handled = e as HandledMouseEventArgs;
+                if (handled != null)
+                    handled.Handled = true;
+            };
+        }
+
         private static void SelectComboText(ComboBox combo, string value)
         {
             if (combo == null)
                 return;
+
+            if (string.Equals(value, "Put folder contents at disc root", StringComparison.OrdinalIgnoreCase))
+                value = "Disc root";
+            else if (string.Equals(value, "Keep selected folders as folders", StringComparison.OrdinalIgnoreCase))
+                value = "Keep folders";
 
             for (int i = 0; i < combo.Items.Count; i++)
             {
@@ -1146,6 +1656,22 @@ namespace LuxBurn
             return check;
         }
 
+        private CheckBox CreateReadOnlyCheckBox(string text, int x, int y, bool isChecked)
+        {
+            CheckBox check = CreateCheckBox(text, x, y, isChecked);
+            MakeReadOnlyCheck(check);
+            return check;
+        }
+
+        private static void MakeReadOnlyCheck(CheckBox check)
+        {
+            if (check == null)
+                return;
+
+            check.AutoCheck = false;
+            check.TabStop = false;
+        }
+
         private RadioButton CreateRadioButton(string text, int x, int y, bool isChecked)
         {
             RadioButton radio = new RadioButton();
@@ -1153,6 +1679,14 @@ namespace LuxBurn
             radio.Checked = isChecked;
             radio.Location = new Point(x, y);
             radio.Size = new Size(220, 22);
+            return radio;
+        }
+
+        private RadioButton CreateReadOnlyRadioButton(string text, int x, int y, bool isChecked)
+        {
+            RadioButton radio = CreateRadioButton(text, x, y, isChecked);
+            radio.AutoCheck = false;
+            radio.TabStop = false;
             return radio;
         }
 
@@ -1165,14 +1699,14 @@ namespace LuxBurn
             card.BorderStyle = BorderStyle.FixedSingle;
             parent.Controls.Add(card);
 
-            Label heading = new Label();
+            Label heading = new ShadowLabel();
             heading.Text = title;
             heading.Font = CreateUiFont(8.25f, FontStyle.Bold);
             heading.Location = new Point(12, 10);
             heading.Size = new Size(392, 18);
             card.Controls.Add(heading);
 
-            Label description = new Label();
+            Label description = new ShadowLabel();
             description.Text = body;
             description.Location = new Point(12, 32);
             description.Size = new Size(392, 34);
@@ -2290,6 +2824,197 @@ namespace LuxBurn
             }
         }
 
+        private sealed class ShadowLabel : Label
+        {
+            public bool UseShadow = true;
+
+            public ShadowLabel()
+            {
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                if (e == null)
+                    return;
+
+                base.OnPaintBackground(e);
+                Color color = ForeColor == Color.Transparent ? ThemeText : ForeColor;
+                TextFormatFlags flags = GetLabelTextFlags(TextAlign);
+                if (Height > Font.Height + 6)
+                {
+                    flags &= ~TextFormatFlags.EndEllipsis;
+                    flags |= TextFormatFlags.WordBreak;
+                }
+
+                if (UseShadow)
+                    DrawShadowedText(e.Graphics, Text, Font, ClientRectangle, color, flags);
+                else
+                    DrawPlainText(e.Graphics, Text, Font, ClientRectangle, color, flags);
+            }
+
+            protected override void OnTextChanged(EventArgs e)
+            {
+                base.OnTextChanged(e);
+                Invalidate();
+            }
+        }
+
+        private sealed class ThemedTabControl : TabControl
+        {
+            private const int WM_PAINT = 0x000F;
+            private readonly Image _backgroundImage;
+
+            public ThemedTabControl(Image backgroundImage)
+            {
+                _backgroundImage = backgroundImage;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+            }
+
+            protected override void OnPaintBackground(PaintEventArgs e)
+            {
+                PaintThemeBackground(e.Graphics, ClientRectangle);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+
+                if (m.Msg != WM_PAINT || Width <= 0 || Height <= 0)
+                    return;
+
+                using (Graphics graphics = Graphics.FromHwnd(Handle))
+                    PaintNativeBorderCover(graphics);
+            }
+
+            private void PaintThemeBackground(Graphics graphics, Rectangle bounds)
+            {
+                if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0)
+                    return;
+
+                if (_backgroundImage == null)
+                {
+                    using (Brush brush = new SolidBrush(Color.FromArgb(9, 45, 67)))
+                        graphics.FillRectangle(brush, bounds);
+                    return;
+                }
+
+                DrawViewportBackground(graphics, bounds, _backgroundImage, false);
+            }
+
+            private void PaintNativeBorderCover(Graphics graphics)
+            {
+                Rectangle display = DisplayRectangle;
+                if (display.Width <= 0 || display.Height <= 0)
+                    return;
+
+                int stripBottom = Math.Max(0, display.Top);
+                int tabRight = 0;
+                for (int i = 0; i < TabCount; i++)
+                    tabRight = Math.Max(tabRight, GetTabRect(i).Right);
+
+                if (stripBottom > 0 && tabRight < Width)
+                    PaintThemeBackgroundClipped(graphics, new Rectangle(tabRight, 0, Width - tabRight, stripBottom + 2));
+
+                using (Pen borderPen = new Pen(Color.FromArgb(8, 27, 39)))
+                {
+                    for (int offset = 0; offset < 4; offset++)
+                    {
+                        graphics.DrawRectangle(
+                            borderPen,
+                            display.Left - 3 + offset,
+                            display.Top - 3 + offset,
+                            display.Width + 5 - (offset * 2),
+                            display.Height + 5 - (offset * 2));
+                    }
+                }
+            }
+
+            private void PaintThemeBackgroundClipped(Graphics graphics, Rectangle clipBounds)
+            {
+                if (graphics == null || clipBounds.Width <= 0 || clipBounds.Height <= 0)
+                    return;
+
+                using (Region oldClip = graphics.Clip.Clone())
+                {
+                    graphics.SetClip(clipBounds);
+                    PaintThemeBackground(graphics, ClientRectangle);
+                    graphics.Clip = oldClip;
+                }
+            }
+        }
+
+        private sealed class ThemedListView : ListView
+        {
+            private const int WM_PAINT = 0x000F;
+            private readonly Image _backgroundImage;
+
+            public ThemedListView(Image backgroundImage)
+            {
+                _backgroundImage = backgroundImage;
+                SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+            }
+
+            public void PaintThemeBackground(Graphics graphics, Rectangle bounds)
+            {
+                if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0)
+                    return;
+
+                using (Region oldClip = graphics.Clip.Clone())
+                {
+                    graphics.SetClip(bounds);
+                    if (_backgroundImage == null)
+                    {
+                        using (Brush brush = new SolidBrush(Color.FromArgb(18, 30, 38)))
+                            graphics.FillRectangle(brush, bounds);
+                    }
+                    else
+                        DrawViewportBackground(graphics, ClientRectangle, _backgroundImage, false);
+
+                    graphics.Clip = oldClip;
+                }
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+
+                if (m.Msg != WM_PAINT || ClientSize.Width <= 0 || ClientSize.Height <= 0)
+                    return;
+
+                int top = GetContentFillTop();
+                if (top >= ClientSize.Height)
+                    return;
+
+                using (Graphics graphics = Graphics.FromHwnd(Handle))
+                    PaintThemeBackground(graphics, new Rectangle(0, top, ClientSize.Width, ClientSize.Height - top));
+            }
+
+            private int GetContentFillTop()
+            {
+                int top = View == View.Details && Columns.Count > 0 ? 22 : 0;
+                if (Items.Count == 0)
+                    return top;
+
+                try
+                {
+                    Rectangle lastBounds = Items[Items.Count - 1].Bounds;
+                    top = Math.Max(top, lastBounds.Bottom);
+                }
+                catch
+                {
+                }
+
+                return top;
+            }
+        }
+
         private sealed class OperationButton : Control
         {
             private readonly Image _normalImage;
@@ -2334,6 +3059,14 @@ namespace LuxBurn
                 Image image = _isHovering && _hoverImage != null ? _hoverImage : _normalImage;
                 if (image != null)
                     e.Graphics.DrawImageUnscaled(image, 0, 0);
+
+                if (_isHovering)
+                {
+                    using (Brush brush = new SolidBrush(Color.FromArgb(36, 255, 255, 255)))
+                        e.Graphics.FillRectangle(brush, new Rectangle(1, 1, Math.Max(1, Width - 2), Math.Max(1, Height - 2)));
+                    using (Pen pen = new Pen(Color.FromArgb(210, 174, 232, 255)))
+                        e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
+                }
             }
 
             private static Image ComposeButton(Image background, Image icon, string caption, Font font)
@@ -2676,11 +3409,13 @@ namespace LuxBurn
             DiscRecorderInfo recorder = _buildBurnDriveCombo == null ? null : _buildBurnDriveCombo.SelectedItem as DiscRecorderInfo;
             string recorderId = recorder == null ? string.Empty : recorder.Id;
             string burnMethod = "Auto";
+            string writeSpeed = GetSelectedBurnSpeed(_buildBurnSpeedCombo);
+            int copies = GetSelectedBurnCopies(_buildBurnCopiesCombo);
             bool eject = _ejectAfterBurnCheck == null || _ejectAfterBurnCheck.Checked;
             bool verifyAfter = _verifyAfterBurnCheck != null && _verifyAfterBurnCheck.Checked;
             bool handedOffToWindowsBurner = false;
             bool placeFolderContentsAtRoot = _folderPlacementCombo == null || _folderPlacementCombo.SelectedIndex == 0;
-            string folderPlacement = _folderPlacementCombo == null ? "Put folder contents at disc root" : Convert.ToString(_folderPlacementCombo.SelectedItem);
+            string folderPlacement = _folderPlacementCombo == null ? "Disc root" : Convert.ToString(_folderPlacementCombo.SelectedItem);
 
             if (_buildItemList.Items.Count == 0)
             {
@@ -2728,7 +3463,20 @@ namespace LuxBurn
                     Log("Burning built image: " + output);
                     Log("Target drive: " + recorder.DisplayName);
                     Log("Burn backend: " + (usingExternalBurner ? "Windows Disc Image Burner" : "cdrecord"));
-                    _burningService.BurnImage(output, recorderId, eject, burnMethod, Log, UpdateBurnProgress, _burnCancellation.Token);
+                    if (usingExternalBurner && copies > 1)
+                        throw new InvalidOperationException("Multiple copies require the cdrecord backend.");
+
+                    for (int copyNumber = 1; copyNumber <= copies; copyNumber++)
+                    {
+                        _burnCancellation.Token.ThrowIfCancellationRequested();
+                        if (copyNumber > 1 && !ConfirmNextBurnCopy(copyNumber, copies))
+                            throw new OperationCanceledException();
+
+                        if (copies > 1)
+                            Log("Starting burn copy " + copyNumber + " of " + copies + ".");
+
+                        _burningService.BurnImage(output, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token);
+                    }
 
                     if (!usingExternalBurner && verifyAfter)
                     {
@@ -2794,6 +3542,8 @@ namespace LuxBurn
             DiscRecorderInfo recorder = _burnDriveCombo.SelectedItem as DiscRecorderInfo;
             string recorderId = recorder == null ? string.Empty : recorder.Id;
             string burnMethod = "Auto";
+            string writeSpeed = GetSelectedBurnSpeed(_burnSpeedCombo);
+            int copies = GetSelectedBurnCopies(_burnCopiesCombo);
             bool eject = _ejectAfterBurnCheck.Checked;
             bool verifyAfter = _verifyAfterBurnCheck.Checked;
 
@@ -2814,7 +3564,20 @@ namespace LuxBurn
                 bool usingExternalBurner = _burningService.WillUseWindowsDiscImageBurner(burnMethod);
                 Log("Burning image: " + image);
                 Log("Burn backend: " + (usingExternalBurner ? "Windows Disc Image Burner" : "cdrecord"));
-                _burningService.BurnImage(image, recorderId, eject, burnMethod, Log, UpdateBurnProgress, _burnCancellation.Token);
+                if (usingExternalBurner && copies > 1)
+                    throw new InvalidOperationException("Multiple copies require the cdrecord backend.");
+
+                for (int copyNumber = 1; copyNumber <= copies; copyNumber++)
+                {
+                    _burnCancellation.Token.ThrowIfCancellationRequested();
+                    if (copyNumber > 1 && !ConfirmNextBurnCopy(copyNumber, copies))
+                        throw new OperationCanceledException();
+
+                    if (copies > 1)
+                        Log("Starting burn copy " + copyNumber + " of " + copies + ".");
+
+                    _burningService.BurnImage(image, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token);
+                }
 
                 if (!usingExternalBurner && verifyAfter)
                 {

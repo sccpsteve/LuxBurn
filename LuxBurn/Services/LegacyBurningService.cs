@@ -175,14 +175,22 @@ namespace LuxBurn.Services
 
         public void BurnImage(string imagePath, string recorderId, bool ejectWhenDone, string method, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
+            BurnImage(imagePath, recorderId, ejectWhenDone, method, null, log, progress, cancellationToken);
+        }
+
+        public void BurnImage(string imagePath, string recorderId, bool ejectWhenDone, string method, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
+        {
             if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
                 throw new FileNotFoundException("The image file does not exist.", imagePath);
 
             if (ShouldUseCdrecord(method))
             {
-                LaunchCdrecordBurner(imagePath, recorderId, ejectWhenDone, log, progress, cancellationToken);
+                LaunchCdrecordBurner(imagePath, recorderId, ejectWhenDone, writeSpeed, log, progress, cancellationToken);
                 return;
             }
+
+            if (!IsAutomaticWriteSpeed(writeSpeed))
+                Log(log, "Selected write speed is only applied by the cdrecord backend.");
 
             if (ShouldUseWindowsDiscImageBurner(method))
             {
@@ -319,6 +327,29 @@ namespace LuxBurn.Services
                    File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "isoburn.exe"));
         }
 
+        private static bool IsAutomaticWriteSpeed(string writeSpeed)
+        {
+            if (string.IsNullOrEmpty(writeSpeed))
+                return true;
+
+            return string.Equals(writeSpeed, "Auto", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(writeSpeed, "Max", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(writeSpeed, "MAX", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(writeSpeed, "AWS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string FormatCdrecordSpeedArgument(string writeSpeed)
+        {
+            if (IsAutomaticWriteSpeed(writeSpeed))
+                return string.Empty;
+
+            string digits = Regex.Replace(writeSpeed, "[^0-9]", string.Empty);
+            if (digits.Length == 0)
+                return string.Empty;
+
+            return "speed=" + digits;
+        }
+
         public void EraseDisc(string recorderId, bool fullErase, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
             string cdrecordPath = FindCdrecordPath();
@@ -416,7 +447,7 @@ namespace LuxBurn.Services
             RunProcessAndLog(cdrecordPath, args, log, null, cancellationToken);
         }
 
-        private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
+        private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
             string cdrecordPath = FindCdrecordPath();
             if (string.IsNullOrEmpty(cdrecordPath))
@@ -439,6 +470,10 @@ namespace LuxBurn.Services
             string args =
                 "gracetime=5 dev=" + device +
                 " fs=16m driveropts=burnfree -v -tao";
+
+            string speedArgument = FormatCdrecordSpeedArgument(writeSpeed);
+            if (!string.IsNullOrEmpty(speedArgument))
+                args += " " + speedArgument;
 
             args += " " + QuoteArgument(imagePath);
 
