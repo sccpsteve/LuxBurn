@@ -12,8 +12,8 @@ if errorlevel 1 (
 
 echo.
 echo Packages are ready:
-echo dist\LuxBurn-v2.1.3-portable.zip
-echo dist\LuxBurn-v2.1.3-setup.exe
+echo dist\LuxBurn-v2.1.4-portable.zip
+echo dist\LuxBurn-v2.1.4-setup.exe
 echo.
 echo Press any key to close this window.
 pause >nul

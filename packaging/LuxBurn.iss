@@ -1,10 +1,10 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.3"
+  #define AppVersion "2.1.4"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
-#define DotNet40Redist "..\build\redist\dotNetFx40_Full_x86_x64.exe"
+#define DotNet40Redist "..\build\redist\dotNetFx40_Full_x86.exe"
 
 [Setup]
 AppId={{6B9103D3-7F75-40B8-89F1-220D6142E752}
@@ -159,8 +159,8 @@ begin
     Exit;
 
   DotNetInstallAttempted := True;
-  ExtractTemporaryFile('dotNetFx40_Full_x86_x64.exe');
-  InstallerPath := ExpandConstant('{tmp}\dotNetFx40_Full_x86_x64.exe');
+  ExtractTemporaryFile('dotNetFx40_Full_x86.exe');
+  InstallerPath := ExpandConstant('{tmp}\dotNetFx40_Full_x86.exe');
 
   if not Exec(InstallerPath, '/passive /norestart', '', SW_SHOW, ewWaitUntilTerminated, DotNetInstallExitCode) then
   begin
