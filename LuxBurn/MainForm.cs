@@ -32,6 +32,7 @@ namespace LuxBurn
         private static readonly Color ThemeInputBack = Color.FromArgb(26, 40, 50);
         private static readonly Color ThemeInputBorder = Color.FromArgb(91, 123, 137);
         private static readonly Color ThemePanelBack = Color.FromArgb(24, 36, 45);
+        private static readonly Dictionary<string, Image> UiAssetCache = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
         private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
         private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
 
@@ -489,7 +490,7 @@ namespace LuxBurn
             page.Controls.Add(group);
             BindWorkspaceGroup(page, group);
 
-            _driveCombo = new ComboBox();
+            _driveCombo = new TexturedComboBox();
             _driveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _driveCombo.Location = new Point(18, 28);
             _driveCombo.Size = new Size(520, 22);
@@ -615,7 +616,7 @@ namespace LuxBurn
             group.Controls.Add(browseImage);
 
             AddLabel(group, "Target drive", 18, 70);
-            _burnDriveCombo = new ComboBox();
+            _burnDriveCombo = new TexturedComboBox();
             _burnDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _burnDriveCombo.Location = new Point(130, 66);
             _burnDriveCombo.Size = new Size(500, 22);
@@ -639,35 +640,30 @@ namespace LuxBurn
             SetToolTip(_burnSpeedCombo, "Auto lets cdrecord choose the drive/media default. Numeric values pass speed=N to cdrecord.");
             group.Controls.Add(_burnSpeedCombo);
 
-            AddLabel(group, "Copies", 350, 164);
+            AddLabel(group, "Copies", 350, 164, 54);
             _burnCopiesCombo = CreateBurnCopiesCombo(412, 160);
             SetToolTip(_burnCopiesCombo, "For multiple copies, LuxBurn burns one disc at a time and prompts for the next blank disc.");
             group.Controls.Add(_burnCopiesCombo);
 
-            Label note = new ShadowLabel();
-            note.Text = "Burning uses the bundled cdrecord backend. If cdrecord is unavailable, LuxBurn opens Windows Disc Image Burner.";
-            note.Location = new Point(130, 196);
-            note.Size = new Size(560, 24);
-            note.ForeColor = Color.FromArgb(72, 72, 72);
-            group.Controls.Add(note);
+            SetToolTip(group, "Burning uses the bundled cdrecord backend. If cdrecord is unavailable, LuxBurn opens Windows Disc Image Burner.");
 
-            AddLabel(group, "Progress", 18, 236);
-            _writeProgress = CreateProgressBar(130, 234, 500);
+            AddLabel(group, "Progress", 18, 202);
+            _writeProgress = CreateProgressBar(130, 200, 500);
             group.Controls.Add(_writeProgress);
 
-            AddLabel(group, "Buffer", 18, 272);
-            _bufferProgress = CreateProgressBar(130, 270, 500);
+            AddLabel(group, "Buffer", 18, 238);
+            _bufferProgress = CreateProgressBar(130, 236, 500);
             group.Controls.Add(_bufferProgress);
 
-            AddLabel(group, "Device buffer", 18, 308);
-            _deviceBufferProgress = CreateProgressBar(130, 306, 500);
+            AddLabel(group, "Device buffer", 18, 274);
+            _deviceBufferProgress = CreateProgressBar(130, 272, 500);
             group.Controls.Add(_deviceBufferProgress);
 
-            _burnButton = CreateButton("Burn image", 130, 360, 120, 29);
+            _burnButton = CreateButton("Burn image", 130, 326, 120, 29);
             _burnButton.Click += delegate { BurnImage(); };
             group.Controls.Add(_burnButton);
 
-            _abortButton = CreateButton("Abort", 262, 360, 90, 29);
+            _abortButton = CreateButton("Abort", 262, 326, 90, 29);
             _abortButton.Enabled = false;
             _abortButton.Click += delegate { AbortBurn(); };
             group.Controls.Add(_abortButton);
@@ -683,7 +679,7 @@ namespace LuxBurn
             BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Target drive", 18, 32);
-            _eraseDriveCombo = new ComboBox();
+            _eraseDriveCombo = new TexturedComboBox();
             _eraseDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _eraseDriveCombo.Location = new Point(130, 28);
             _eraseDriveCombo.Size = new Size(500, 22);
@@ -695,12 +691,7 @@ namespace LuxBurn
             _fullEraseCheck.Size = new Size(150, 22);
             group.Controls.Add(_fullEraseCheck);
 
-            Label note = new ShadowLabel();
-            note.Text = "Erase works on rewritable discs such as CD-RW and DVD-RW. CD-R cannot be erased.";
-            note.Location = new Point(130, 100);
-            note.Size = new Size(560, 36);
-            note.ForeColor = Color.FromArgb(72, 72, 72);
-            group.Controls.Add(note);
+            SetToolTip(group, "Erase works on rewritable discs such as CD-RW and DVD-RW. CD-R cannot be erased.");
 
             _eraseButton = CreateButton("Erase disc", 130, 154, 120, 29);
             _eraseButton.Click += delegate { EraseDisc(); };
@@ -717,7 +708,7 @@ namespace LuxBurn
             BindWorkspaceGroup(page, group);
 
             AddLabel(group, "Source drive", 18, 32);
-            _copyDriveCombo = new ComboBox();
+            _copyDriveCombo = new TexturedComboBox();
             _copyDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _copyDriveCombo.Location = new Point(130, 28);
             _copyDriveCombo.Size = new Size(500, 22);
@@ -741,12 +732,7 @@ namespace LuxBurn
             _verifyAfterCopyCheck.Size = new Size(220, 22);
             group.Controls.Add(_verifyAfterCopyCheck);
 
-            Label note = new ShadowLabel();
-            note.Text = "Copies standard data discs to ISO-style images using the bundled readcd backend.";
-            note.Location = new Point(130, 136);
-            note.Size = new Size(560, 48);
-            note.ForeColor = Color.FromArgb(72, 72, 72);
-            group.Controls.Add(note);
+            SetToolTip(group, "Copies standard data discs to ISO-style images using the bundled readcd backend.");
 
             AddLabel(group, "Progress", 18, 202);
             _copyProgress = CreateProgressBar(130, 200, 500);
@@ -779,7 +765,7 @@ namespace LuxBurn
             group.Controls.Add(browseFile);
 
             AddLabel(group, "Algorithm", 18, 70);
-            _algorithmCombo = new ComboBox();
+            _algorithmCombo = new TexturedComboBox();
             _algorithmCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _algorithmCombo.Items.AddRange(new object[] { "SHA256", "SHA1", "SHA512", "MD5" });
             _algorithmCombo.SelectedIndex = 0;
@@ -937,6 +923,65 @@ namespace LuxBurn
             graphics.DrawImageUnscaled(image, bounds.Location);
         }
 
+        private static void DrawTextureBar(Graphics graphics, Rectangle bounds, bool lit, bool dropdown, bool dropdownHover)
+        {
+            if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            Image left = LoadUiAsset(lit ? "LeftPartOfBar1-Lit.png" : "LeftPartOfBar1.png");
+            Image center = LoadUiAsset(lit ? "CenterPartOfBar1-Lit.png" : "CenterPartOfBar1.png");
+            Image right = dropdown
+                ? LoadUiAsset(dropdownHover ? "RightPartOfBar1-Dropdowns-Hover.png" : "RightPartOfBar1-Dropdowns.png")
+                : LoadUiAsset(lit ? "RightPartofBar1-Lit.png" : "RightPartofBar1.png");
+
+            if (left == null || center == null || right == null)
+            {
+                using (Brush brush = new SolidBrush(lit ? Color.FromArgb(44, 82, 102) : ThemeInputBack))
+                    graphics.FillRectangle(brush, bounds);
+                ControlPaint.DrawBorder(graphics, bounds, ThemeInputBorder, ButtonBorderStyle.Solid);
+                return;
+            }
+
+            int height = Math.Min(bounds.Height, left.Height);
+            Rectangle leftBounds = new Rectangle(bounds.X, bounds.Y, Math.Min(left.Width, bounds.Width), height);
+            Rectangle rightBounds = new Rectangle(bounds.Right - Math.Min(right.Width, bounds.Width), bounds.Y, Math.Min(right.Width, bounds.Width), height);
+            Rectangle centerBounds = new Rectangle(leftBounds.Right, bounds.Y, Math.Max(0, rightBounds.Left - leftBounds.Right), height);
+
+            graphics.DrawImage(left, leftBounds);
+            for (int x = centerBounds.Left; x < centerBounds.Right; x += center.Width)
+            {
+                int tileWidth = Math.Min(center.Width, centerBounds.Right - x);
+                Rectangle source = new Rectangle(0, 0, tileWidth, height);
+                Rectangle target = new Rectangle(x, centerBounds.Top, tileWidth, height);
+                graphics.DrawImage(center, target, source, GraphicsUnit.Pixel);
+            }
+            graphics.DrawImage(right, rightBounds);
+        }
+
+        private static void PaintInheritedThemeBackground(Graphics graphics, Control control)
+        {
+            if (graphics == null || control == null)
+                return;
+
+            Control root = control.Parent;
+            while (root != null && !(root is TabPage))
+                root = root.Parent;
+
+            if (root != null)
+            {
+                Point offset = root.PointToClient(control.PointToScreen(Point.Empty));
+                DrawViewportBackground(
+                    graphics,
+                    new Rectangle(-offset.X, -offset.Y, root.ClientSize.Width, root.ClientSize.Height),
+                    LoadUiAsset("BG-1.png"),
+                    false);
+                return;
+            }
+
+            using (Brush brush = new SolidBrush(Color.FromArgb(9, 45, 67)))
+                graphics.FillRectangle(brush, control.ClientRectangle);
+        }
+
         private void ApplyDarkTheme(Control root)
         {
             if (root == null)
@@ -970,6 +1015,18 @@ namespace LuxBurn
             else if (root is CheckBox || root is RadioButton)
             {
                 root.ForeColor = ThemeText;
+                root.BackColor = Color.Transparent;
+            }
+            else if (root is TexturedTextBox)
+            {
+                TextBox textBox = (TextBox)root;
+                textBox.BackColor = ThemeInputBack;
+                textBox.ForeColor = ThemeText;
+                textBox.BorderStyle = BorderStyle.None;
+            }
+            else if (root is ThemedButton)
+            {
+                root.ForeColor = Color.Transparent;
                 root.BackColor = Color.Transparent;
             }
             else if (root is TextBox)
@@ -1154,11 +1211,11 @@ namespace LuxBurn
                     return;
 
                 if (barImage != null)
-                    e.Graphics.DrawImageUnscaled(barImage, 8, 0);
+                    e.Graphics.DrawImageUnscaled(barImage, 8, -8);
 
                 Rectangle textBounds = barImage == null
-                    ? new Rectangle(8, 0, Math.Max(1, painted.Width - 16), 18)
-                    : new Rectangle(15, 5, Math.Max(1, barImage.Width - 20), Math.Max(1, barImage.Height - 9));
+                    ? new Rectangle(8, -8, Math.Max(1, painted.Width - 16), 18)
+                    : new Rectangle(15, -3, Math.Max(1, barImage.Width - 20), Math.Max(1, barImage.Height - 9));
 
                 using (Font titleFont = new Font("Arial", 9f, FontStyle.Regular, GraphicsUnit.Point))
                     DrawAliasedShadowedText(e.Graphics, originalText, titleFont, textBounds, ThemeText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
@@ -1275,11 +1332,11 @@ namespace LuxBurn
 
         private Button CreateButton(string text, int x, int y, int width, int height)
         {
-            Button button = new Button();
+            Button button = new ThemedButton();
             button.Text = text;
             button.Location = new Point(x, y);
             button.Size = new Size(width, height);
-            button.FlatStyle = FlatStyle.System;
+            button.FlatStyle = FlatStyle.Flat;
             return button;
         }
 
@@ -1287,7 +1344,7 @@ namespace LuxBurn
         {
             NeutralProgressBar bar = new NeutralProgressBar();
             bar.Location = new Point(x, y);
-            bar.Size = new Size(width, 22);
+            bar.Size = new Size(width, 26);
             return bar;
         }
 
@@ -1317,18 +1374,23 @@ namespace LuxBurn
 
         private TextBox CreateTextBox(int x, int y, int width)
         {
-            TextBox textBox = new TextBox();
+            TextBox textBox = new TexturedTextBox();
             textBox.Location = new Point(x, y);
-            textBox.Size = new Size(width, 22);
+            textBox.Size = new Size(width, 26);
             return textBox;
         }
 
         private Label AddLabel(Control parent, string text, int x, int y)
         {
+            return AddLabel(parent, text, x, y, 100);
+        }
+
+        private Label AddLabel(Control parent, string text, int x, int y, int width)
+        {
             Label label = new ShadowLabel();
             label.Text = text;
             label.Location = new Point(x, y);
-            label.Size = new Size(100, 18);
+            label.Size = new Size(width, 18);
             parent.Controls.Add(label);
             return label;
         }
@@ -1369,7 +1431,7 @@ namespace LuxBurn
             page.Controls.Add(info);
 
             AddLabel(page, "Target Drive:", 10, 204);
-            _buildBurnDriveCombo = new ComboBox();
+            _buildBurnDriveCombo = new TexturedComboBox();
             _buildBurnDriveCombo.DropDownStyle = ComboBoxStyle.DropDownList;
             _buildBurnDriveCombo.Location = new Point(126, 200);
             _buildBurnDriveCombo.Size = new Size(256, 22);
@@ -1546,7 +1608,7 @@ namespace LuxBurn
 
         private ComboBox CreateDropDown(int x, int y, int width, object[] items)
         {
-            ComboBox combo = new ComboBox();
+            ComboBox combo = new TexturedComboBox();
             combo.DropDownStyle = ComboBoxStyle.DropDownList;
             combo.Items.AddRange(items);
             combo.SelectedIndex = 0;
@@ -1648,7 +1710,7 @@ namespace LuxBurn
 
         private CheckBox CreateCheckBox(string text, int x, int y, bool isChecked)
         {
-            CheckBox check = new CheckBox();
+            CheckBox check = new ThemedCheckBox();
             check.Text = text;
             check.Checked = isChecked;
             check.Location = new Point(x, y);
@@ -2712,11 +2774,17 @@ namespace LuxBurn
 
         private static Image LoadUiAsset(string fileName)
         {
+            Image cached;
+            if (UiAssetCache.TryGetValue(fileName, out cached))
+                return cached;
+
             string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Ui", fileName);
             if (!File.Exists(path))
                 path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Ui", fileName);
 
-            return File.Exists(path) ? Image.FromFile(path) : null;
+            cached = File.Exists(path) ? Image.FromFile(path) : null;
+            UiAssetCache[fileName] = cached;
+            return cached;
         }
 
         private static Icon LoadWindowIcon()
@@ -2858,6 +2926,225 @@ namespace LuxBurn
             {
                 base.OnTextChanged(e);
                 Invalidate();
+            }
+        }
+
+        private sealed class TexturedTextBox : TextBox
+        {
+            private const int WM_PAINT = 0x000F;
+            private const int WM_ERASEBKGND = 0x0014;
+
+            public TexturedTextBox()
+            {
+                Multiline = true;
+                BorderStyle = BorderStyle.None;
+                BackColor = ThemeInputBack;
+                ForeColor = ThemeText;
+                ScrollBars = ScrollBars.None;
+                WordWrap = false;
+            }
+
+            protected override void OnTextChanged(EventArgs e)
+            {
+                base.OnTextChanged(e);
+                Invalidate();
+            }
+
+            protected override void OnGotFocus(EventArgs e)
+            {
+                base.OnGotFocus(e);
+                Invalidate();
+            }
+
+            protected override void OnLostFocus(EventArgs e)
+            {
+                base.OnLostFocus(e);
+                Invalidate();
+            }
+
+            protected override void OnKeyUp(KeyEventArgs e)
+            {
+                base.OnKeyUp(e);
+                Invalidate();
+            }
+
+            protected override void OnMouseUp(MouseEventArgs e)
+            {
+                base.OnMouseUp(e);
+                Invalidate();
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WM_ERASEBKGND)
+                {
+                    m.Result = new IntPtr(1);
+                    return;
+                }
+
+                if (m.Msg == WM_PAINT)
+                {
+                    PAINTSTRUCT ps;
+                    IntPtr hdc = BeginPaint(Handle, out ps);
+                    try
+                    {
+                        using (Graphics graphics = Graphics.FromHdc(hdc))
+                            PaintTextBox(graphics);
+                    }
+                    finally
+                    {
+                        EndPaint(Handle, ref ps);
+                    }
+                    return;
+                }
+
+                base.WndProc(ref m);
+            }
+
+            private void PaintTextBox(Graphics graphics)
+            {
+                PaintInheritedThemeBackground(graphics, this);
+                DrawTextureBar(graphics, new Rectangle(0, 0, Width, Math.Min(26, Height)), Focused, false, false);
+                Rectangle textBounds = new Rectangle(7, 0, Math.Max(1, Width - 14), Math.Min(26, Height));
+                DrawShadowedText(graphics, Text, Font, textBounds, Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
+                if (Focused && !ReadOnly)
+                {
+                    int caretX = textBounds.Left + TextRenderer.MeasureText(Text.Substring(0, Math.Min(SelectionStart, Text.Length)), Font).Width - 2;
+                    caretX = Math.Max(textBounds.Left, Math.Min(textBounds.Right - 1, caretX));
+                    using (Pen pen = new Pen(ThemeText))
+                        graphics.DrawLine(pen, caretX, 6, caretX, Math.Min(20, Height - 4));
+                }
+            }
+        }
+
+        private sealed class TexturedComboBox : ComboBox
+        {
+            private const int WM_PAINT = 0x000F;
+            private const int WM_ERASEBKGND = 0x0014;
+            private bool _hovering;
+
+            public TexturedComboBox()
+            {
+                FlatStyle = FlatStyle.Flat;
+                BackColor = ThemeInputBack;
+                ForeColor = ThemeText;
+            }
+
+            protected override void OnMouseEnter(EventArgs e)
+            {
+                _hovering = true;
+                base.OnMouseEnter(e);
+                Invalidate();
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                _hovering = false;
+                base.OnMouseLeave(e);
+                Invalidate();
+            }
+
+            protected override void OnSelectedIndexChanged(EventArgs e)
+            {
+                base.OnSelectedIndexChanged(e);
+                Invalidate();
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WM_ERASEBKGND)
+                {
+                    m.Result = new IntPtr(1);
+                    return;
+                }
+
+                if (m.Msg != WM_PAINT)
+                {
+                    base.WndProc(ref m);
+                    return;
+                }
+
+                PAINTSTRUCT ps;
+                IntPtr hdc = BeginPaint(Handle, out ps);
+                try
+                {
+                    using (Graphics graphics = Graphics.FromHdc(hdc))
+                    {
+                        Rectangle bounds = new Rectangle(0, 0, Width, Math.Min(26, Height));
+                        PaintInheritedThemeBackground(graphics, this);
+                        DrawTextureBar(graphics, bounds, Focused || _hovering, true, _hovering);
+                        Rectangle textBounds = new Rectangle(7, 0, Math.Max(1, Width - 38), bounds.Height);
+                        DrawShadowedText(graphics, Text, Font, textBounds, Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    }
+                }
+                finally
+                {
+                    EndPaint(Handle, ref ps);
+                }
+            }
+        }
+
+        private sealed class ThemedButton : Button
+        {
+            private bool _hovering;
+
+            public ThemedButton()
+            {
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+                ForeColor = Color.Transparent;
+                FlatStyle = FlatStyle.Flat;
+            }
+
+            protected override void OnMouseEnter(EventArgs e)
+            {
+                _hovering = true;
+                base.OnMouseEnter(e);
+                Invalidate();
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                _hovering = false;
+                base.OnMouseLeave(e);
+                Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                if (e == null)
+                    return;
+
+                PaintInheritedThemeBackground(e.Graphics, this);
+                DrawTextureBar(e.Graphics, new Rectangle(0, 0, Width, Math.Min(26, Height)), Enabled && _hovering, false, false);
+                DrawShadowedText(e.Graphics, Text, Font, ClientRectangle, Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+        }
+
+        private sealed class ThemedCheckBox : CheckBox
+        {
+            public ThemedCheckBox()
+            {
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+                ForeColor = ThemeText;
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                if (e == null)
+                    return;
+
+                base.OnPaintBackground(e);
+                ButtonState state = Checked ? ButtonState.Checked : ButtonState.Normal;
+                if (!Enabled)
+                    state |= ButtonState.Inactive;
+
+                Rectangle checkBounds = new Rectangle(0, Math.Max(0, (Height - 13) / 2), 13, 13);
+                ControlPaint.DrawCheckBox(e.Graphics, checkBounds, state);
+                Rectangle textBounds = new Rectangle(20, 0, Math.Max(1, Width - 20), Height);
+                DrawShadowedText(e.Graphics, Text, Font, textBounds, Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             }
         }
 
@@ -3277,10 +3564,10 @@ namespace LuxBurn
 
             public NeutralProgressBar()
             {
-                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-                Font = new Font("MS Sans Serif", 8.25f);
-                BackColor = Color.FromArgb(238, 238, 234);
-                ForeColor = Color.FromArgb(42, 48, 52);
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
+                Font = new Font("Arial", 9f);
+                BackColor = Color.Transparent;
+                ForeColor = ThemeText;
             }
 
             public int Value
@@ -3299,22 +3586,26 @@ namespace LuxBurn
 
             protected override void OnPaint(PaintEventArgs e)
             {
-                Rectangle bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-                e.Graphics.Clear(BackColor);
-                using (Brush fill = new SolidBrush(Color.FromArgb(92, 98, 98)))
+                Rectangle bounds = new Rectangle(0, 0, Width, Math.Min(26, Height));
+                DrawTextureBar(e.Graphics, bounds, false, false, false);
+
+                int fillWidth = (int)Math.Round(Width * (_value / 100.0));
+                if (fillWidth > 0)
                 {
-                    int fillWidth = (int)Math.Round((Width - 2) * (_value / 100.0));
-                    if (fillWidth > 0)
-                        e.Graphics.FillRectangle(fill, 1, 1, fillWidth, Height - 2);
+                    using (Region oldClip = e.Graphics.Clip.Clone())
+                    {
+                        e.Graphics.SetClip(new Rectangle(0, 0, Math.Min(Width, fillWidth), Height));
+                        DrawTextureBar(e.Graphics, bounds, true, false, false);
+                        e.Graphics.Clip = oldClip;
+                    }
                 }
 
-                ControlPaint.DrawBorder(e.Graphics, bounds, Color.FromArgb(150, 150, 144), ButtonBorderStyle.Solid);
-                TextRenderer.DrawText(
+                DrawShadowedText(
                     e.Graphics,
                     _value.ToString() + "%",
                     Font,
                     bounds,
-                    Color.FromArgb(24, 24, 24),
+                    ThemeText,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
             }
         }
@@ -4205,6 +4496,24 @@ namespace LuxBurn
 
         [DllImport("user32.dll")]
         private static extern IntPtr SendMessage(IntPtr hWnd, int message, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PAINTSTRUCT
+        {
+            public IntPtr hdc;
+            public bool fErase;
+            public Rectangle rcPaint;
+            public bool fRestore;
+            public bool fIncUpdate;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)]
+            public byte[] rgbReserved;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr BeginPaint(IntPtr hWnd, out PAINTSTRUCT lpPaint);
+
+        [DllImport("user32.dll")]
+        private static extern bool EndPaint(IntPtr hWnd, ref PAINTSTRUCT lpPaint);
 
         private void BrowseFolder(TextBox target)
         {

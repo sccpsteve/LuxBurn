@@ -405,7 +405,7 @@ namespace LuxBurn.Services
             string args = "dev=" + device + " f=" + QuoteArgument(outputPath) + " retries=16 -v";
             Log(log, "Launching readcd backend: readcd.exe " + args);
             ReportProgress(progress, 0, -1, -1, "Starting copy");
-            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken);
+            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken, media.CapacitySectors);
 
             FileInfo image = new FileInfo(outputPath);
             if (!image.Exists || image.Length == 0)
@@ -719,6 +719,11 @@ namespace LuxBurn.Services
 
         private static void RunProcessAndLog(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
+            RunProcessAndLog(fileName, arguments, log, progress, cancellationToken, -1);
+        }
+
+        private static void RunProcessAndLog(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, long readTotalSectors)
+        {
             ProcessStartInfo startInfo = new ProcessStartInfo(fileName, arguments);
             startInfo.UseShellExecute = false;
             startInfo.CreateNoWindow = true;
@@ -731,26 +736,25 @@ namespace LuxBurn.Services
             {
                 bool writeStarted = false;
                 process.StartInfo = startInfo;
-                DataReceivedEventHandler handler = delegate(object sender, DataReceivedEventArgs e)
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                    {
-                        Log(log, e.Data);
-                        if (IsCdrecordWriteStartedLine(e.Data))
-                            writeStarted = true;
-                        ReportProgressFromCdrecordLine(e.Data, progress);
-                        ReportProgressFromReadcdLine(e.Data, progress);
-                    }
-                };
-
-                process.OutputDataReceived += handler;
-                process.ErrorDataReceived += handler;
+                ProcessProgressState progressState = new ProcessProgressState();
+                progressState.ReadTotalSectors = readTotalSectors;
 
                 if (!process.Start())
                     throw new InvalidOperationException("Could not start " + Path.GetFileName(fileName) + ".");
 
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
+                Thread outputThread = new Thread(new ThreadStart(delegate
+                {
+                    PumpProcessOutput(process.StandardOutput, log, progress, progressState, delegate { writeStarted = true; });
+                }));
+                Thread errorThread = new Thread(new ThreadStart(delegate
+                {
+                    PumpProcessOutput(process.StandardError, log, progress, progressState, delegate { writeStarted = true; });
+                }));
+                outputThread.IsBackground = true;
+                errorThread.IsBackground = true;
+                outputThread.Start();
+                errorThread.Start();
+
                 while (!process.WaitForExit(250))
                 {
                     if (cancellationToken.IsCancellationRequested)
@@ -767,9 +771,65 @@ namespace LuxBurn.Services
                     }
                 }
 
+                outputThread.Join(2000);
+                errorThread.Join(2000);
+
                 if (process.ExitCode != 0)
                     throw new BurnProcessException(Path.GetFileName(fileName) + " failed with exit code " + process.ExitCode + ".", writeStarted);
             }
+        }
+
+        private sealed class ProcessProgressState
+        {
+            public long ReadTotalSectors;
+            public int LastLoggedProgressPercent = -1;
+        }
+
+        private static void PumpProcessOutput(StreamReader reader, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted)
+        {
+            StringBuilder segment = new StringBuilder();
+            int value;
+            while ((value = reader.Read()) >= 0)
+            {
+                char ch = (char)value;
+                if (ch == '\r' || ch == '\n')
+                    FlushProcessOutputSegment(segment, log, progress, state, writeStarted);
+                else
+                    segment.Append(ch);
+            }
+
+            FlushProcessOutputSegment(segment, log, progress, state, writeStarted);
+        }
+
+        private static void FlushProcessOutputSegment(StringBuilder segment, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted)
+        {
+            if (segment == null || segment.Length == 0)
+                return;
+
+            string line = segment.ToString().Trim();
+            segment.Length = 0;
+            if (line.Length == 0)
+                return;
+
+            if (IsCdrecordWriteStartedLine(line) && writeStarted != null)
+                writeStarted();
+
+            int percent = -1;
+            bool progressLine = ReportProgressFromCdrecordLine(line, progress, out percent);
+            progressLine = ReportProgressFromReadcdLine(line, progress, state, out percent) || progressLine;
+
+            if (progressLine)
+            {
+                if (percent >= 0 && (state == null || Math.Abs(percent - state.LastLoggedProgressPercent) >= 10 || percent == 100))
+                {
+                    if (state != null)
+                        state.LastLoggedProgressPercent = percent;
+                    Log(log, "Progress: " + percent + "%");
+                }
+                return;
+            }
+
+            Log(log, line);
         }
 
         private static bool IsCdrecordWriteStartedLine(string line)
@@ -780,10 +840,11 @@ namespace LuxBurn.Services
                    line.IndexOf("Fixating", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private static void ReportProgressFromCdrecordLine(string line, Action<BurnProgress> progress)
+        private static bool ReportProgressFromCdrecordLine(string line, Action<BurnProgress> progress, out int percentValue)
         {
+            percentValue = -1;
             if (progress == null || string.IsNullOrEmpty(line))
-                return;
+                return false;
 
             Match track = Regex.Match(
                 line,
@@ -797,41 +858,47 @@ namespace LuxBurn.Services
                 int fifo = Convert.ToInt32(track.Groups[3].Value);
                 int device = Convert.ToInt32(track.Groups[4].Value);
                 ReportProgress(progress, percent, fifo, device, "Writing");
-                return;
+                percentValue = percent;
+                return true;
             }
 
             Match percentDone = Regex.Match(line, @"(\d+)%\s+done", RegexOptions.IgnoreCase);
             if (percentDone.Success)
             {
-                ReportProgress(progress, Convert.ToInt32(percentDone.Groups[1].Value), -1, -1, "Writing");
-                return;
+                percentValue = Convert.ToInt32(percentDone.Groups[1].Value);
+                ReportProgress(progress, percentValue, -1, -1, "Writing");
+                return true;
             }
 
             if (line.IndexOf("Fixating", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 line.IndexOf("lead-out", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 ReportProgress(progress, -1, -1, -1, "Finalizing disc");
-                return;
+                return true;
             }
 
             if (line.IndexOf("blanking", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 line.IndexOf("Blanking", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 ReportProgress(progress, -1, -1, -1, "Erasing disc");
+                return true;
             }
+
+            return false;
         }
 
-        private static void ReportProgressFromReadcdLine(string line, Action<BurnProgress> progress)
+        private static bool ReportProgressFromReadcdLine(string line, Action<BurnProgress> progress, ProcessProgressState state, out int percentValue)
         {
+            percentValue = -1;
             if (progress == null || string.IsNullOrEmpty(line))
-                return;
+                return false;
 
             Match percent = Regex.Match(line, @"(\d{1,3})\s*%\s*(?:done|read|complete)?", RegexOptions.IgnoreCase);
             if (percent.Success)
             {
-                int value = Math.Max(0, Math.Min(100, Convert.ToInt32(percent.Groups[1].Value)));
-                ReportProgress(progress, value, -1, -1, "Copying disc");
-                return;
+                percentValue = Math.Max(0, Math.Min(100, Convert.ToInt32(percent.Groups[1].Value)));
+                ReportProgress(progress, percentValue, -1, -1, "Copying disc");
+                return true;
             }
 
             Match sectors = Regex.Match(line, @"(\d+)\s*(?:of|/)\s*(\d+)\s*(?:sectors|blocks)?", RegexOptions.IgnoreCase);
@@ -839,9 +906,26 @@ namespace LuxBurn.Services
             {
                 long current = Convert.ToInt64(sectors.Groups[1].Value);
                 long total = Math.Max(1, Convert.ToInt64(sectors.Groups[2].Value));
-                int value = Math.Max(0, Math.Min(100, (int)Math.Round((current * 100.0) / total)));
-                ReportProgress(progress, value, -1, -1, "Copying disc");
-                return;
+                percentValue = Math.Max(0, Math.Min(100, (int)Math.Round((current * 100.0) / total)));
+                ReportProgress(progress, percentValue, -1, -1, "Copying disc");
+                return true;
+            }
+
+            Match capacity = Regex.Match(line, @"Capacity:\s*(\d+)\s+Blocks", RegexOptions.IgnoreCase);
+            if (capacity.Success && state != null)
+            {
+                state.ReadTotalSectors = Convert.ToInt64(capacity.Groups[1].Value);
+                ReportProgress(progress, -1, -1, -1, "Copying disc");
+                return true;
+            }
+
+            Match address = Regex.Match(line, @"addr:\s*(\d+)", RegexOptions.IgnoreCase);
+            if (address.Success && state != null && state.ReadTotalSectors > 0)
+            {
+                long current = Convert.ToInt64(address.Groups[1].Value);
+                percentValue = Math.Max(0, Math.Min(100, (int)Math.Round((current * 100.0) / state.ReadTotalSectors)));
+                ReportProgress(progress, percentValue, -1, -1, "Copying disc");
+                return true;
             }
 
             if (line.IndexOf("capacity", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -849,7 +933,10 @@ namespace LuxBurn.Services
                 line.IndexOf("addr", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 ReportProgress(progress, -1, -1, -1, "Copying disc");
+                return true;
             }
+
+            return false;
         }
 
         private static void ReportProgress(Action<BurnProgress> progress, int overall, int buffer, int deviceBuffer, string status)
