@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Media;
 using System.Net;
 using System.Net.Cache;
 using System.Reflection;
@@ -33,8 +34,17 @@ namespace LuxBurn
         private static readonly Color ThemeInputBorder = Color.FromArgb(91, 123, 137);
         private static readonly Color ThemePanelBack = Color.FromArgb(24, 36, 45);
         private static readonly Dictionary<string, Image> UiAssetCache = new Dictionary<string, Image>(StringComparer.OrdinalIgnoreCase);
+        private static DateTime LastSelectSoundUtc = DateTime.MinValue;
         private const string UpdateManifestUrl = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-update.json";
         private const string TrustedUpdatePrefix = "https://github.com/sccpsteve/LuxBurn/releases/download/latest/";
+        private const string SelectSoundFile = "Select.wav";
+        private const string TaskStartSoundFile = "Task-Start.wav";
+        private const string TaskSuccessSoundFile = "Task-Finish-Success.wav";
+        private const string TaskFailedSoundFile = "Task-Failed.wav";
+        private const string BackSoundFile = "Back.wav";
+        private const string ErrorSoundFile = "Error.wav";
+        private const string HomeSoundFile = "Home_brand.wav";
+        private const string PageBoundarySoundFile = "Page_Boundary.wav";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
         private readonly ToolTip _toolTip = new ToolTip();
@@ -107,6 +117,7 @@ namespace LuxBurn
         private CancellationTokenSource _burnCancellation;
         private bool _burnInProgress;
         private bool _redrawSuspended;
+        private bool _uiSoundsReady;
 
         public MainForm()
         {
@@ -116,6 +127,7 @@ namespace LuxBurn
             Size = GetStartupWindowSize();
             Font = CreateUiFont(9f, FontStyle.Regular);
             BackColor = Color.FromArgb(240, 240, 236);
+            KeyPreview = true;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
 
             Icon windowIcon = LoadWindowIcon();
@@ -128,7 +140,12 @@ namespace LuxBurn
             RefreshComponentStatus();
             RefreshDrives();
             FormClosing += MainFormFormClosing;
-            Shown += delegate { BeginInvoke(new MethodInvoker(delegate { CheckForUpdates(false); })); };
+            Shown += delegate
+            {
+                _uiSoundsReady = true;
+                PlayHomeSound();
+                BeginInvoke(new MethodInvoker(delegate { CheckForUpdates(false); }));
+            };
         }
 
         protected override void Dispose(bool disposing)
@@ -168,6 +185,36 @@ namespace LuxBurn
         {
             base.OnResizeEnd(e);
             EndVisualTransition();
+        }
+
+        protected override void OnKeyPress(KeyPressEventArgs e)
+        {
+            if (_uiSoundsReady && !char.IsControl(e.KeyChar) && !IsTextInputFocused())
+                PlayPageBoundarySound();
+
+            base.OnKeyPress(e);
+        }
+
+        private bool IsTextInputFocused()
+        {
+            return IsTextInputFocused(this);
+        }
+
+        private static bool IsTextInputFocused(Control control)
+        {
+            if (control == null || !control.ContainsFocus)
+                return false;
+
+            if (control.Focused && (control is TextBoxBase || control is ComboBox || control is NumericUpDown))
+                return true;
+
+            foreach (Control child in control.Controls)
+            {
+                if (IsTextInputFocused(child))
+                    return true;
+            }
+
+            return false;
         }
 
         private Font CreateUiFont(float size, FontStyle style)
@@ -245,8 +292,8 @@ namespace LuxBurn
             _mainSplit.FixedPanel = FixedPanel.Panel1;
             _mainSplit.Panel1MinSize = CompactOperationRailWidth;
             _mainSplit.SplitterWidth = 4;
-            _mainSplit.SplitterDistance = GetPreferredOperationRailWidth();
             Controls.Add(_mainSplit);
+            TrySetSplitterDistance(GetPreferredOperationRailWidth());
             _mainSplit.BringToFront();
             Load += delegate { AdjustCompactLayout(); };
             Resize += delegate { AdjustCompactLayout(); };
@@ -337,7 +384,27 @@ namespace LuxBurn
             help.DropDownItems.Add("Credits", null, delegate { ShowCreditsDialog(); });
             menu.Items.Add(help);
 
+            AttachMenuSounds(menu.Items);
             return menu;
+        }
+
+        private static void AttachMenuSounds(ToolStripItemCollection items)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                ToolStripMenuItem menuItem = item as ToolStripMenuItem;
+                if (menuItem == null)
+                    continue;
+
+                menuItem.Click += delegate
+                {
+                    if (menuItem.Enabled)
+                        PlaySelectSound();
+                };
+
+                if (menuItem.DropDownItems.Count > 0)
+                    AttachMenuSounds(menuItem.DropDownItems);
+            }
         }
 
         private void BuildLeftPanel(Control parent)
@@ -396,7 +463,12 @@ namespace LuxBurn
             _tabs.Dock = DockStyle.Fill;
             _tabs.Padding = new Point(12, 5);
             _tabs.Selecting += delegate { BeginVisualTransition(); };
-            _tabs.SelectedIndexChanged += delegate { UpdateSidebarVisibility(); };
+            _tabs.SelectedIndexChanged += delegate
+            {
+                if (_uiSoundsReady)
+                    PlaySelectSound();
+                UpdateSidebarVisibility();
+            };
             parent.Controls.Add(_tabs);
 
             _tabs.TabPages.Add(CreateDriveTab());
@@ -426,7 +498,7 @@ namespace LuxBurn
             try
             {
                 if (!hideSidebar)
-                    _mainSplit.SplitterDistance = GetPreferredOperationRailWidth();
+                    TrySetSplitterDistance(GetPreferredOperationRailWidth());
 
                 _mainSplit.Panel1Collapsed = hideSidebar;
             }
@@ -445,14 +517,35 @@ namespace LuxBurn
 
         private void AdjustCompactLayout()
         {
-            if (_mainSplit == null || _mainSplit.Panel1Collapsed)
+            if (_mainSplit == null || _mainSplit.Panel1Collapsed || WindowState == FormWindowState.Minimized)
                 return;
 
-            int desired = GetPreferredOperationRailWidth();
-            int maximum = Math.Max(_mainSplit.Panel1MinSize, _mainSplit.Width - _mainSplit.Panel2MinSize - _mainSplit.SplitterWidth);
-            desired = Math.Min(desired, maximum);
-            if (desired >= _mainSplit.Panel1MinSize && _mainSplit.SplitterDistance != desired)
-                _mainSplit.SplitterDistance = desired;
+            TrySetSplitterDistance(GetPreferredOperationRailWidth());
+        }
+
+        private bool TrySetSplitterDistance(int desired)
+        {
+            if (_mainSplit == null || _mainSplit.Panel1Collapsed || _mainSplit.Width <= 0)
+                return false;
+
+            int minimum = Math.Max(0, _mainSplit.Panel1MinSize);
+            int maximum = _mainSplit.Width - _mainSplit.Panel2MinSize - _mainSplit.SplitterWidth;
+            if (maximum < minimum)
+                return false;
+
+            int clamped = Math.Max(minimum, Math.Min(desired, maximum));
+            if (_mainSplit.SplitterDistance == clamped)
+                return true;
+
+            try
+            {
+                _mainSplit.SplitterDistance = clamped;
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
         }
 
         private void BeginVisualTransition()
@@ -1669,7 +1762,10 @@ namespace LuxBurn
                 return (bool)Invoke(new Func<int, int, bool>(ConfirmNextBurnCopy), copyNumber, totalCopies);
 
             string message = "Insert a blank disc for copy " + copyNumber + " of " + totalCopies + ", then click OK.";
-            return MessageBox.Show(this, message, Text, MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
+            bool confirmed = ShowLuxMessage(message, MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
+            if (!confirmed)
+                PlayBackSound();
+            return confirmed;
         }
 
         private static void MakeReadOnlyCombo(ComboBox combo)
@@ -2175,7 +2271,7 @@ namespace LuxBurn
             string path = GetMostRecentProjectPath();
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
-                MessageBox.Show(this, "No recent project was found.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("No recent project was found.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -2312,7 +2408,7 @@ namespace LuxBurn
 
             if (image.Length == 0 || !File.Exists(image))
             {
-                MessageBox.Show(this, "Choose or build an image first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose or build an image first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -2320,7 +2416,7 @@ namespace LuxBurn
             string message = "Image sectors: " + sectors.ToString("N0") + Environment.NewLine +
                              "Layer break sector: " + (sectors / 2).ToString("N0") + Environment.NewLine +
                              "This is an informational midpoint estimate for DVD-sized images.";
-            MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ShowLuxMessage(message, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void EjectSelectedDrive()
@@ -2328,18 +2424,21 @@ namespace LuxBurn
             DiscRecorderInfo recorder = GetSelectedRecorder();
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             try
             {
+                PlayTaskStartSound();
                 _burningService.RunDriveCommand(recorder.Id, "-eject", Log, CancellationToken.None);
                 SetStatus("Eject command sent.");
+                PlaySelectSound();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not eject the selected drive: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PlayTaskFailedSound();
+                ShowLuxMessage("Could not eject the selected drive: " + ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -2348,10 +2447,11 @@ namespace LuxBurn
             DiscRecorderInfo recorder = GetSelectedRecorder();
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
+            PlayTaskStartSound();
             RunWork(displayName + "...", delegate
             {
                 _burningService.RunDriveCommand(recorder.Id, command, Log, CancellationToken.None);
@@ -2360,6 +2460,7 @@ namespace LuxBurn
             {
                 Log(displayName + " completed.");
                 SetStatus(displayName + " completed.");
+                PlaySelectSound();
             });
         }
 
@@ -2484,7 +2585,7 @@ namespace LuxBurn
             DiscRecorderInfo recorder = GetSelectedRecorder();
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -2497,18 +2598,24 @@ namespace LuxBurn
                 model + Environment.NewLine + Environment.NewLine +
                 "Search FirmwareHQ for firmware downloads for this drive?";
 
-            if (MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            if (ShowLuxMessage(message, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                PlayBackSound();
                 return;
+            }
 
             string url = "https://www.firmwarehq.com/search.php?keywords=" + Uri.EscapeDataString(model);
             try
             {
+                PlayTaskStartSound();
                 System.Diagnostics.Process.Start(url);
                 SetStatus("Firmware search opened.");
+                PlaySelectSound();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not open firmware search: " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PlayTaskFailedSound();
+                ShowLuxMessage("Could not open firmware search: " + ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -3111,6 +3218,12 @@ namespace LuxBurn
                 Invalidate();
             }
 
+            protected override void OnClick(EventArgs e)
+            {
+                PlaySelectSound();
+                base.OnClick(e);
+            }
+
             protected override void OnPaint(PaintEventArgs e)
             {
                 if (e == null)
@@ -3335,6 +3448,12 @@ namespace LuxBurn
                 _isHovering = false;
                 Invalidate();
                 base.OnMouseLeave(e);
+            }
+
+            protected override void OnClick(EventArgs e)
+            {
+                PlaySelectSound();
+                base.OnClick(e);
             }
 
             protected override void OnPaint(PaintEventArgs e)
@@ -3614,6 +3733,9 @@ namespace LuxBurn
         {
             try
             {
+                if (_uiSoundsReady)
+                    PlaySelectSound();
+
                 IList<DiscRecorderInfo> recorders = _burningService.GetRecorders();
                 _driveCombo.Items.Clear();
                 _buildBurnDriveCombo.Items.Clear();
@@ -3650,9 +3772,13 @@ namespace LuxBurn
 
                 SetStatus(recorders.Count == 0 ? "No optical recorders were found." : "Detected " + recorders.Count + " optical recorder(s).");
                 Log(recorders.Count == 0 ? "No optical recorders found." : "Drive list refreshed.");
+                if (_uiSoundsReady)
+                    PlaySelectSound();
             }
             catch (Exception ex)
             {
+                if (_uiSoundsReady)
+                    PlayTaskFailedSound();
                 SetStatus("Drive refresh failed.");
                 Log("Drive refresh failed: " + ex.Message);
             }
@@ -3666,10 +3792,11 @@ namespace LuxBurn
 
             if (_buildItemList.Items.Count == 0 || output.Length == 0)
             {
-                MessageBox.Show(this, "Add files or folders and choose an output image path first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Add files or folders and choose an output image path first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
+            PlayTaskStartSound();
             RunWork("Building image...", delegate
             {
                 string stagingPath = CreateBuildStagingFolder(placeFolderContentsAtRoot);
@@ -3689,6 +3816,7 @@ namespace LuxBurn
                 _burnImageText.Text = output;
                 _verifyFileText.Text = output;
                 CalculateBuildImageInformation();
+                PlaySelectSound();
             });
         }
 
@@ -3710,13 +3838,13 @@ namespace LuxBurn
 
             if (_buildItemList.Items.Count == 0)
             {
-                MessageBox.Show(this, "Add files or folders first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Add files or folders first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a target drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a target drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -3733,6 +3861,7 @@ namespace LuxBurn
             if (_burnDriveCombo != null && recorder != null)
                 _burnDriveCombo.SelectedItem = recorder;
 
+            PlayTaskStartSound();
             ResetBurnProgress();
             _burnCancellation = new CancellationTokenSource();
             _burnInProgress = true;
@@ -3806,14 +3935,16 @@ namespace LuxBurn
                     {
                         Log("Build and burn cancelled.");
                         SetStatus("Build and burn cancelled.");
+                        PlayBackSound();
                         return;
                     }
 
+                    PlayTaskFailedSound();
                     Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
                     if (e.Error.InnerException != null)
                         Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
 
-                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ShowLuxMessage(e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -3822,7 +3953,7 @@ namespace LuxBurn
                 if (usingExternalBurner && temporaryOutput)
                     Log("Temporary ISO kept for Windows Disc Image Burner: " + output);
                 if (!usingExternalBurner)
-                    PlaySuccessSound();
+                    PlayTaskSuccessSound();
             };
             worker.RunWorkerAsync();
         }
@@ -3840,10 +3971,11 @@ namespace LuxBurn
 
             if (image.Length == 0)
             {
-                MessageBox.Show(this, "Choose an image file first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose an image file first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
+            PlayTaskStartSound();
             ResetBurnProgress();
             _burnCancellation = new CancellationTokenSource();
             _burnInProgress = true;
@@ -3890,21 +4022,23 @@ namespace LuxBurn
                     {
                         Log("Burn cancelled.");
                         SetStatus("Burn cancelled.");
+                        PlayBackSound();
                         return;
                     }
 
+                    PlayTaskFailedSound();
                     Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
                     if (e.Error.InnerException != null)
                         Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
 
-                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ShowLuxMessage(e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
                 bool usingExternalBurner = Convert.ToBoolean(e.Result);
                 Log(usingExternalBurner ? "Burn window opened." : "Burn completed.");
                 if (!usingExternalBurner)
-                    PlaySuccessSound();
+                    PlayTaskSuccessSound();
             };
             worker.RunWorkerAsync();
         }
@@ -3918,22 +4052,24 @@ namespace LuxBurn
 
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a source drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a source drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             if (output.Length == 0)
             {
-                MessageBox.Show(this, "Choose an output image path first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose an output image path first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             if (File.Exists(output) &&
-                MessageBox.Show(this, "Replace the existing output image?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                ShowLuxMessage("Replace the existing output image?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
             {
+                PlayBackSound();
                 return;
             }
 
+            PlayTaskStartSound();
             ResetBurnProgress();
             _burnCancellation = new CancellationTokenSource();
             _burnInProgress = true;
@@ -3963,21 +4099,23 @@ namespace LuxBurn
                     {
                         Log("Copy cancelled.");
                         SetStatus("Copy cancelled.");
+                        PlayBackSound();
                         return;
                     }
 
+                    PlayTaskFailedSound();
                     Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
                     if (e.Error.InnerException != null)
                         Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
 
-                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ShowLuxMessage(e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
                 Log("Copy completed.");
                 _burnImageText.Text = output;
                 _verifyFileText.Text = output;
-                PlaySuccessSound();
+                PlayTaskSuccessSound();
             };
             worker.RunWorkerAsync();
         }
@@ -3990,13 +4128,17 @@ namespace LuxBurn
 
             if (recorder == null)
             {
-                MessageBox.Show(this, "Choose a target drive first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a target drive first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            if (MessageBox.Show(this, "Erase the rewritable disc in the selected drive?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (ShowLuxMessage("Erase the rewritable disc in the selected drive?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                PlayBackSound();
                 return;
+            }
 
+            PlayTaskStartSound();
             ResetBurnProgress();
             _burnCancellation = new CancellationTokenSource();
             _burnInProgress = true;
@@ -4020,15 +4162,18 @@ namespace LuxBurn
                     {
                         Log("Erase cancelled.");
                         SetStatus("Erase cancelled.");
+                        PlayBackSound();
                         return;
                     }
 
+                    PlayTaskFailedSound();
                     Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
-                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ShowLuxMessage(e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
                 Log("Erase completed.");
+                PlayTaskSuccessSound();
             };
             worker.RunWorkerAsync();
         }
@@ -4041,10 +4186,11 @@ namespace LuxBurn
 
             if (file.Length == 0)
             {
-                MessageBox.Show(this, "Choose a file first.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ShowLuxMessage("Choose a file first.", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
+            PlayTaskStartSound();
             RunWork("Calculating checksum...", delegate
             {
                 Log("Calculating " + algorithm + " for " + file);
@@ -4059,6 +4205,8 @@ namespace LuxBurn
                     Log(string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase) ? "Checksum matches." : "Checksum does not match.");
                 else
                     Log("Checksum calculated: " + actual);
+
+                PlaySelectSound();
             });
         }
 
@@ -4082,11 +4230,12 @@ namespace LuxBurn
 
                 if (e.Error != null)
                 {
+                    PlayTaskFailedSound();
                     Log("Operation failed: " + e.Error.GetType().Name + ": " + e.Error.Message);
                     if (e.Error.InnerException != null)
                         Log("Original error: " + e.Error.InnerException.GetType().Name + ": " + e.Error.InnerException.Message);
 
-                    MessageBox.Show(this, e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ShowLuxMessage(e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -4118,9 +4267,10 @@ namespace LuxBurn
             if (!_burnInProgress || _burnCancellation == null)
                 return;
 
-            if (MessageBox.Show(this, "Cancel the current disc operation?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (ShowLuxMessage("Cancel the current disc operation?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
+            PlayBackSound();
             Log("Cancellation requested.");
             SetStatus("Cancelling...");
             _burnCancellation.Cancel();
@@ -4134,8 +4284,11 @@ namespace LuxBurn
                 return;
 
             e.Cancel = true;
-            if (MessageBox.Show(this, "A disc operation is in progress. Do you want to cancel it?", Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            if (ShowLuxMessage("A disc operation is in progress. Do you want to cancel it?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                PlayBackSound();
                 AbortBurnWithoutPrompt();
+            }
         }
 
         private void AbortBurnWithoutPrompt()
@@ -4194,6 +4347,8 @@ namespace LuxBurn
             if (!manual && DateTime.UtcNow < GetUpdateReminderDate())
                 return;
 
+            if (manual)
+                PlayTaskStartSound();
             SetStatus("Checking for updates...");
             BackgroundWorker worker = new BackgroundWorker();
             worker.DoWork += delegate(object sender, DoWorkEventArgs e)
@@ -4215,7 +4370,10 @@ namespace LuxBurn
 
                     Log("Update check failed: " + e.Error.Message);
                     if (manual)
-                        MessageBox.Show(this, "Could not check for updates." + Environment.NewLine + e.Error.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    {
+                        PlayTaskFailedSound();
+                        ShowLuxMessage("Could not check for updates." + Environment.NewLine + e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                     return;
                 }
 
@@ -4224,7 +4382,10 @@ namespace LuxBurn
                 {
                     SetStatus("Ready");
                     if (manual)
-                        MessageBox.Show(this, "No update information was found.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    {
+                        PlayTaskFailedSound();
+                        ShowLuxMessage("No update information was found.", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                     return;
                 }
 
@@ -4234,7 +4395,10 @@ namespace LuxBurn
                 {
                     SetStatus("LuxBurn is up to date.");
                     if (manual)
-                        MessageBox.Show(this, "LuxBurn is up to date." + Environment.NewLine + "You're running " + FormatVersion(running) + ".", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    {
+                        PlaySelectSound();
+                        ShowLuxMessage("LuxBurn is up to date." + Environment.NewLine + "You're running " + FormatVersion(running) + ".", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
                     return;
                 }
 
@@ -4247,11 +4411,15 @@ namespace LuxBurn
                     SetStatus("Ready");
                     Log("Update manifest rejected: " + ex.Message);
                     if (manual)
-                        MessageBox.Show(this, "Could not check for updates." + Environment.NewLine + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    {
+                        PlayTaskFailedSound();
+                        ShowLuxMessage("Could not check for updates." + Environment.NewLine + ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                     return;
                 }
 
                 SetStatus("Update available.");
+                PlaySelectSound();
                 ShowUpdatePrompt(update, running, latest);
             };
             worker.RunWorkerAsync();
@@ -4276,9 +4444,15 @@ namespace LuxBurn
                 if (result == DialogResult.Yes)
                     OpenUpdateReleasePage(update);
                 else if (result == DialogResult.Retry)
+                {
+                    PlayBackSound();
                     SaveUpdateReminder(DateTime.UtcNow.AddDays(7));
+                }
                 else
+                {
+                    PlayBackSound();
                     SetStatus("Ready");
+                }
             }
         }
 
@@ -4286,7 +4460,7 @@ namespace LuxBurn
         {
             if (_burnInProgress)
             {
-                MessageBox.Show(this, "A disc operation is in progress. Finish or cancel it before opening the update page.", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ShowLuxMessage("A disc operation is in progress. Finish or cancel it before opening the update page.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -4295,12 +4469,14 @@ namespace LuxBurn
                 string page = IsTrustedReleasePageUrl(update.ReleasePageUrl) ? update.ReleasePageUrl : "https://github.com/sccpsteve/LuxBurn/releases/tag/latest";
                 Process.Start(page);
                 SetStatus("Update page opened.");
+                PlaySelectSound();
             }
             catch (Exception ex)
             {
                 SetStatus("Ready");
                 Log("Could not open update page: " + ex.Message);
-                MessageBox.Show(this, "Could not open the update page." + Environment.NewLine + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PlayTaskFailedSound();
+                ShowLuxMessage("Could not open the update page." + Environment.NewLine + ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -4465,6 +4641,20 @@ namespace LuxBurn
             _logText.AppendText(DateTime.Now.ToString("HH:mm:ss") + "  " + message + Environment.NewLine);
         }
 
+        private DialogResult ShowLuxMessage(string message, MessageBoxButtons buttons, MessageBoxIcon icon)
+        {
+            PlayMessageSound(icon);
+            return MessageBox.Show(this, message, Text, buttons, icon);
+        }
+
+        private static void PlayMessageSound(MessageBoxIcon icon)
+        {
+            if (icon == MessageBoxIcon.Error || icon == MessageBoxIcon.Warning)
+                PlayErrorSound();
+            else
+                PlaySelectSound();
+        }
+
         private static string NormalizeHash(string value)
         {
             return (value ?? string.Empty).Replace(" ", string.Empty).Replace("-", string.Empty).Trim();
@@ -4472,20 +4662,67 @@ namespace LuxBurn
 
         private void PlaySuccessSound()
         {
+            PlaySelectSound();
+        }
+
+        private static void PlaySelectSound()
+        {
+            DateTime now = DateTime.UtcNow;
+            if ((now - LastSelectSoundUtc).TotalMilliseconds < 120)
+                return;
+
+            LastSelectSoundUtc = now;
+            PlaySoundFile(SelectSoundFile);
+        }
+
+        private static void PlayTaskStartSound()
+        {
+            PlaySoundFile(TaskStartSoundFile);
+        }
+
+        private static void PlayTaskSuccessSound()
+        {
+            PlaySoundFile(TaskSuccessSoundFile);
+        }
+
+        private static void PlayTaskFailedSound()
+        {
+            PlaySoundFile(TaskFailedSoundFile);
+        }
+
+        private static void PlayBackSound()
+        {
+            PlaySoundFile(BackSoundFile);
+        }
+
+        private static void PlayErrorSound()
+        {
+            PlaySoundFile(ErrorSoundFile);
+        }
+
+        private static void PlayHomeSound()
+        {
+            PlaySoundFile(HomeSoundFile);
+        }
+
+        private static void PlayPageBoundarySound()
+        {
+            PlaySoundFile(PageBoundarySoundFile);
+        }
+
+        private static void PlaySoundFile(string fileName)
+        {
             try
             {
-                string soundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", "jingle-of-success.mp3");
+                string soundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", fileName);
                 if (!File.Exists(soundPath))
                     return;
 
-                string alias = "LuxBurnSuccess";
-                MciSendString("close " + alias, null, 0, IntPtr.Zero);
-                MciSendString("open \"" + soundPath + "\" type mpegvideo alias " + alias, null, 0, IntPtr.Zero);
-                MciSendString("play " + alias, null, 0, IntPtr.Zero);
+                SoundPlayer player = new SoundPlayer(soundPath);
+                player.Play();
             }
-            catch (Exception ex)
+            catch
             {
-                Log("Success sound failed: " + ex.Message);
             }
         }
 
