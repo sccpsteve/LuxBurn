@@ -1,6 +1,6 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.2"
+  #define AppVersion "2.1.3"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
@@ -80,6 +80,72 @@ begin
   Result := (ExitCode = 0) or (ExitCode = 3010) or (ExitCode = 1641);
 end;
 
+function WindowsVersionDescription(): String;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := IntToStr(Version.Major) + '.' + IntToStr(Version.Minor) + ', Service Pack ' + IntToStr(Version.ServicePackMajor);
+end;
+
+function IsUnsupportedWindowsXp(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major = 5) and (Version.Minor = 1) and (Version.ServicePackMajor < 3);
+end;
+
+function WindowsInstallerDescription(): String;
+var
+  VersionString: String;
+begin
+  if GetVersionNumbersString(ExpandConstant('{sys}\msi.dll'), VersionString) then
+    Result := VersionString
+  else
+    Result := 'unknown';
+end;
+
+function DotNetFailureMessage(ExitCode: Integer): String;
+begin
+  if ExitCode = -1073741819 then
+  begin
+    Result :=
+      'Microsoft .NET Framework 4 crashed while installing.' + #13#10 + #13#10 +
+      'Windows reported 0xC0000005, which is an access violation inside the Microsoft installer, not inside LuxBurn.' + #13#10 + #13#10 +
+      'Try these repairs, then run LuxBurn Setup again:' + #13#10 +
+      '1. Make sure Windows XP Service Pack 3 is installed.' + #13#10 +
+      '2. Restart Windows.' + #13#10 +
+      '3. If it still fails, repair or reinstall Windows Installer, then run this setup again.' + #13#10 + #13#10 +
+      'Detected Windows: ' + WindowsVersionDescription() + #13#10 +
+      'Windows Installer file version: ' + WindowsInstallerDescription();
+  end
+  else
+  begin
+    Result :=
+      'Microsoft .NET Framework 4 did not install successfully. Setup cannot continue until it is installed.' + #13#10 + #13#10 +
+      'Exit code: ' + IntToStr(ExitCode) + #13#10 +
+      'Detected Windows: ' + WindowsVersionDescription() + #13#10 +
+      'Windows Installer file version: ' + WindowsInstallerDescription();
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+
+  if IsUnsupportedWindowsXp() then
+  begin
+    MsgBox(
+      'LuxBurn requires Windows XP Service Pack 3 or newer.' + #13#10 + #13#10 +
+      'This computer appears to be running Windows ' + WindowsVersionDescription() + '.' + #13#10 +
+      'Install Windows XP Service Pack 3, restart Windows, then run LuxBurn Setup again.',
+      mbCriticalError,
+      MB_OK);
+    Result := False;
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   InstallerPath: String;
@@ -117,7 +183,7 @@ begin
   if IsDotNetExitCodeSuccessful(DotNetInstallExitCode) then
     Result := 'Microsoft .NET Framework 4 did not finish registering on this computer. Restart Windows, then run LuxBurn Setup again.'
   else
-    Result := 'Microsoft .NET Framework 4 did not install successfully. Setup cannot continue until it is installed. Exit code: ' + IntToStr(DotNetInstallExitCode);
+    Result := DotNetFailureMessage(DotNetInstallExitCode);
 end;
 
 function NeedRestart(): Boolean;
