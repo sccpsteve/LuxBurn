@@ -1,6 +1,6 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.1"
+  #define AppVersion "2.1.2"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
@@ -35,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "{#DotNet40Redist}"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsDotNet40
+Source: "{#DotNet40Redist}"; Flags: dontcopy
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -43,10 +43,14 @@ Name: "{group}\LuxBurn"; Filename: "{app}\LuxBurn.exe"; WorkingDir: "{app}"
 Name: "{commondesktop}\LuxBurn"; Filename: "{app}\LuxBurn.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\dotNetFx40_Full_x86_x64.exe"; Parameters: "/passive /norestart"; StatusMsg: "Installing Microsoft .NET Framework 4..."; Flags: waituntilterminated; Check: NeedsDotNet40
 Filename: "{app}\LuxBurn.exe"; Description: "{cm:LaunchProgram,LuxBurn}"; Flags: nowait postinstall skipifsilent; Check: CanLaunchLuxBurn
 
 [Code]
+var
+  DotNetInstallAttempted: Boolean;
+  DotNetInstallExitCode: Integer;
+  DotNetRequiresRestart: Boolean;
+
 function DotNet40InstallFlag(RootKey: Integer): Boolean;
 var
   InstallValue: Cardinal;
@@ -68,5 +72,61 @@ end;
 
 function CanLaunchLuxBurn(): Boolean;
 begin
-  Result := IsDotNet40Installed();
+  Result := IsDotNet40Installed() and (not DotNetRequiresRestart);
+end;
+
+function IsDotNetExitCodeSuccessful(ExitCode: Integer): Boolean;
+begin
+  Result := (ExitCode = 0) or (ExitCode = 3010) or (ExitCode = 1641);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  InstallerPath: String;
+begin
+  Result := '';
+  DotNetInstallAttempted := False;
+  DotNetInstallExitCode := 0;
+  DotNetRequiresRestart := False;
+
+  if IsDotNet40Installed() then
+    Exit;
+
+  DotNetInstallAttempted := True;
+  ExtractTemporaryFile('dotNetFx40_Full_x86_x64.exe');
+  InstallerPath := ExpandConstant('{tmp}\dotNetFx40_Full_x86_x64.exe');
+
+  if not Exec(InstallerPath, '/passive /norestart', '', SW_SHOW, ewWaitUntilTerminated, DotNetInstallExitCode) then
+  begin
+    Result := 'Setup could not start the Microsoft .NET Framework 4 installer. Please run LuxBurn Setup again.';
+    Exit;
+  end;
+
+  if (DotNetInstallExitCode = 3010) or (DotNetInstallExitCode = 1641) then
+  begin
+    DotNetRequiresRestart := True;
+    NeedsRestart := True;
+  end;
+
+  if IsDotNet40Installed() then
+    Exit;
+
+  if DotNetRequiresRestart then
+    Exit;
+
+  if IsDotNetExitCodeSuccessful(DotNetInstallExitCode) then
+    Result := 'Microsoft .NET Framework 4 did not finish registering on this computer. Restart Windows, then run LuxBurn Setup again.'
+  else
+    Result := 'Microsoft .NET Framework 4 did not install successfully. Setup cannot continue until it is installed. Exit code: ' + IntToStr(DotNetInstallExitCode);
+end;
+
+function NeedRestart(): Boolean;
+begin
+  Result := DotNetRequiresRestart;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and DotNetRequiresRestart then
+    MsgBox('Microsoft .NET Framework 4 was installed and Windows must be restarted before LuxBurn can run. Setup will finish now; please restart Windows before opening LuxBurn.', mbInformation, MB_OK);
 end;

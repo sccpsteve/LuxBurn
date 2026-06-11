@@ -24,6 +24,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if exist "%CD%\LuxBurn\App.config" (
+    copy /Y "%CD%\LuxBurn\App.config" "%OUTDIR%\LuxBurn.exe.config" >nul
+)
+
 if exist "%CD%\LuxBurn\Assets" (
     xcopy "%CD%\LuxBurn\Assets" "%OUTDIR%\Assets\" /E /I /Y >nul
 )
