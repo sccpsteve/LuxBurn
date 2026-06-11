@@ -1,6 +1,6 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.0"
+  #define AppVersion "2.1.1"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
@@ -43,8 +43,8 @@ Name: "{group}\LuxBurn"; Filename: "{app}\LuxBurn.exe"; WorkingDir: "{app}"
 Name: "{commondesktop}\LuxBurn"; Filename: "{app}\LuxBurn.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\dotNetFx40_Full_x86_x64.exe"; Parameters: "/q /norestart"; StatusMsg: "Installing Microsoft .NET Framework 4..."; Flags: waituntilterminated; Check: NeedsDotNet40
-Filename: "{app}\LuxBurn.exe"; Description: "{cm:LaunchProgram,LuxBurn}"; Flags: nowait postinstall skipifsilent
+Filename: "{tmp}\dotNetFx40_Full_x86_x64.exe"; Parameters: "/passive /norestart"; StatusMsg: "Installing Microsoft .NET Framework 4..."; Flags: waituntilterminated; Check: NeedsDotNet40
+Filename: "{app}\LuxBurn.exe"; Description: "{cm:LaunchProgram,LuxBurn}"; Flags: nowait postinstall skipifsilent; Check: CanLaunchLuxBurn
 
 [Code]
 function DotNet40InstallFlag(RootKey: Integer): Boolean;
@@ -64,4 +64,9 @@ end;
 function NeedsDotNet40(): Boolean;
 begin
   Result := not IsDotNet40Installed();
+end;
+
+function CanLaunchLuxBurn(): Boolean;
+begin
+  Result := IsDotNet40Installed();
 end;

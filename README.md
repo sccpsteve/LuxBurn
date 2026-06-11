@@ -5,13 +5,13 @@
 # LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.1.0-blue)]()
+[![Version](https://img.shields.io/badge/version-2.1.1-blue)]()
 
 </div>
 
 ## About
 
-LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 2.1.0 is designed to run from Windows XP through Windows 11.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 2.1.1 is designed to run from Windows XP through Windows 11.
 
 The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
@@ -45,8 +45,8 @@ Download the newest build without typing anything:
 
 | Package | Link |
 |:--|:--|
-| Installer | [Download LuxBurn-v2.1.0-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.0-setup.exe) |
-| Portable | [Download LuxBurn-v2.1.0-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.0-portable.zip) |
+| Installer | [Download LuxBurn-v2.1.1-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.1-setup.exe) |
+| Portable | [Download LuxBurn-v2.1.1-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.1-portable.zip) |
 
 The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
 
@@ -85,11 +85,11 @@ package.cmd
 This creates:
 
 ```cmd
-dist\LuxBurn-v2.1.0-portable.zip
-dist\LuxBurn-v2.1.0-setup.exe
+dist\LuxBurn-v2.1.1-portable.zip
+dist\LuxBurn-v2.1.1-setup.exe
 ```
 
-The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
+The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs Microsoft .NET Framework 4 when needed, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
 
 GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source. The latest successful `main` build is also published to the [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest) release, and the direct download links above always point to that latest build.
 
