@@ -919,6 +919,34 @@ namespace LuxBurn
             wheel.AddSlice("Drives", "Inspect", LoadUiAsset("pie_6_6.png"), LoadUiAsset("pie_6_6_O.png"), new Point(-1, 94), LoadButtonAsset("Drives.png"), new Point(37, 150), 55, new Rectangle(24, 197, 92, 42), 100, delegate { RefreshDrives(); _tabs.SelectedIndex = 0; });
             surface.Controls.Add(wheel);
 
+            Panel walkthrough = new Panel();
+            walkthrough.Location = new Point(560, 154);
+            walkthrough.Size = new Size(300, 190);
+            walkthrough.BackColor = Color.Transparent;
+            surface.Controls.Add(walkthrough);
+
+            Label walkthroughTitle = new ShadowLabel();
+            walkthroughTitle.Text = "Not sure where to start?";
+            walkthroughTitle.Font = CreateUiFont(11f, FontStyle.Bold);
+            walkthroughTitle.ForeColor = Color.White;
+            walkthroughTitle.BackColor = Color.Transparent;
+            walkthroughTitle.Location = new Point(0, 0);
+            walkthroughTitle.Size = new Size(292, 24);
+            walkthrough.Controls.Add(walkthroughTitle);
+
+            Label walkthroughBody = new ShadowLabel();
+            walkthroughBody.Text = "Answer one question and LuxBurn will open the right workspace with the next steps.";
+            walkthroughBody.ForeColor = Color.FromArgb(220, 235, 242);
+            walkthroughBody.BackColor = Color.Transparent;
+            walkthroughBody.Location = new Point(0, 30);
+            walkthroughBody.Size = new Size(286, 52);
+            walkthrough.Controls.Add(walkthroughBody);
+
+            Button walkthroughButton = CreateButton("Walkthrough Wizard", 0, 94, 210, 31);
+            walkthroughButton.Click += delegate { ShowWalkthroughWizard(); };
+            SetToolTip(walkthroughButton, "Guides first-time users to build, burn, copy, erase, verify, or inspect a drive.");
+            walkthrough.Controls.Add(walkthroughButton);
+
             return page;
         }
 
@@ -2859,6 +2887,272 @@ namespace LuxBurn
 
             if (_copyOutputText.Text.Trim().Length == 0)
                 BrowseSaveIso(_copyOutputText);
+        }
+
+        private void ShowWalkthroughWizard()
+        {
+            using (Form dialog = new Form())
+            {
+                dialog.Text = "Walkthrough Wizard";
+                dialog.StartPosition = FormStartPosition.CenterParent;
+                dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false;
+                dialog.MinimizeBox = false;
+                dialog.ShowInTaskbar = false;
+                dialog.ClientSize = new Size(660, 430);
+                dialog.Font = Font;
+
+                Label heading = new Label();
+                heading.Text = "What are you trying to do?";
+                heading.Font = CreateUiFont(13f, FontStyle.Bold);
+                heading.Location = new Point(18, 16);
+                heading.Size = new Size(610, 26);
+                dialog.Controls.Add(heading);
+
+                Label intro = new Label();
+                intro.Text = "Choose the closest match. LuxBurn will open the right workspace and prepare the first useful step.";
+                intro.Location = new Point(20, 48);
+                intro.Size = new Size(610, 34);
+                dialog.Controls.Add(intro);
+
+                ListBox choices = new ListBox();
+                choices.Location = new Point(20, 90);
+                choices.Size = new Size(258, 264);
+                choices.IntegralHeight = false;
+                dialog.Controls.Add(choices);
+
+                TextBox steps = new TextBox();
+                steps.Location = new Point(294, 90);
+                steps.Size = new Size(340, 264);
+                steps.Multiline = true;
+                steps.ReadOnly = true;
+                steps.ScrollBars = ScrollBars.Vertical;
+                dialog.Controls.Add(steps);
+
+                WalkthroughChoice[] items = BuildWalkthroughChoices();
+                choices.Items.AddRange(items);
+                choices.SelectedIndexChanged += delegate
+                {
+                    WalkthroughChoice selected = choices.SelectedItem as WalkthroughChoice;
+                    steps.Text = selected == null ? string.Empty : selected.Description;
+                };
+                if (choices.Items.Count > 0)
+                    choices.SelectedIndex = 0;
+
+                Button start = new Button();
+                start.Text = "Open workspace";
+                start.Location = new Point(400, 374);
+                start.Size = new Size(112, 28);
+                start.Click += delegate
+                {
+                    WalkthroughChoice selected = choices.SelectedItem as WalkthroughChoice;
+                    if (selected == null)
+                        return;
+
+                    dialog.DialogResult = DialogResult.OK;
+                    dialog.Close();
+                    RunWalkthroughChoice(selected.Id);
+                };
+                dialog.Controls.Add(start);
+
+                Button cancel = new Button();
+                cancel.Text = "Cancel";
+                cancel.DialogResult = DialogResult.Cancel;
+                cancel.Location = new Point(524, 374);
+                cancel.Size = new Size(90, 28);
+                dialog.Controls.Add(cancel);
+
+                dialog.AcceptButton = start;
+                dialog.CancelButton = cancel;
+                PlaySelectSound();
+                dialog.ShowDialog(this);
+            }
+        }
+
+        private WalkthroughChoice[] BuildWalkthroughChoices()
+        {
+            return new WalkthroughChoice[]
+            {
+                new WalkthroughChoice(
+                    "build-burn",
+                    "Put files on a blank disc",
+                    "Use this when you have files or folders and want LuxBurn to make the disc image and burn it for you.\r\n\r\n1. Add the files or folder.\r\n2. Choose whether folder contents go at the disc root.\r\n3. Pick the target drive.\r\n4. Use Build and burn."),
+                new WalkthroughChoice(
+                    "build-only",
+                    "Make an ISO from files",
+                    "Use this when you want to create an ISO image but do not want to burn it right away.\r\n\r\n1. Add the files or folder.\r\n2. Pick the output ISO path.\r\n3. Check the estimated size.\r\n4. Use Build image."),
+                new WalkthroughChoice(
+                    "burn-image",
+                    "Burn an ISO image",
+                    "Use this when you already have an ISO image, such as an operating system disc image.\r\n\r\n1. Choose the ISO file.\r\n2. Choose the target drive.\r\n3. Insert a blank disc with enough capacity.\r\n4. Burn the image."),
+                new WalkthroughChoice(
+                    "bootable-os",
+                    "Make a bootable OS disc",
+                    "Use this when you downloaded a Windows, Linux, rescue, or installer ISO.\r\n\r\nDo not add the ISO as a normal file in Build Image. Burn the ISO directly.\r\n\r\n1. Open Burn Image.\r\n2. Choose the installer ISO.\r\n3. Choose the drive.\r\n4. Burn it."),
+                new WalkthroughChoice(
+                    "capacity-check",
+                    "Check if the disc is big enough",
+                    "Use this when you are unsure whether a CD, DVD, or rewritable disc can hold the job.\r\n\r\nFor files/folders, use Build Image and Calculate to estimate image size.\r\n\r\nFor an ISO, use Burn Image; LuxBurn checks media capacity before writing."),
+                new WalkthroughChoice(
+                    "copy-disc",
+                    "Copy a disc to an image file",
+                    "Use this when you want to read an existing data disc into an image file.\r\n\r\n1. Insert the source disc.\r\n2. Choose the source drive.\r\n3. Pick where to save the image.\r\n4. Start Copy disc."),
+                new WalkthroughChoice(
+                    "copy-and-burn",
+                    "Copy a disc, then burn a copy",
+                    "Use this when you want a duplicate of a data disc.\r\n\r\n1. Copy the source disc to an image file.\r\n2. When the copy finishes, LuxBurn fills Burn Image with that output.\r\n3. Insert a blank target disc.\r\n4. Burn the copied image."),
+                new WalkthroughChoice(
+                    "erase-disc",
+                    "Erase a rewritable disc",
+                    "Use this only with rewritable media such as CD-RW or DVD-RW.\r\n\r\n1. Insert the rewritable disc.\r\n2. Choose the drive.\r\n3. Use quick erase for normal reuse or full erase when troubleshooting.\r\n4. Start Erase disc."),
+                new WalkthroughChoice(
+                    "disc-rejected",
+                    "A disc was rejected",
+                    "Use this when burning fails, the disc is not writable, or the drive reports unsupported media.\r\n\r\n1. Open Drives and confirm the selected recorder.\r\n2. Check whether the disc is blank, finalized, or rewritable.\r\n3. Use Erase only for RW media.\r\n4. Open Log for the backend details."),
+                new WalkthroughChoice(
+                    "multiple-copies",
+                    "Burn more than one copy",
+                    "Use this when you need several copies of the same ISO.\r\n\r\n1. Open Burn Image.\r\n2. Choose the ISO and drive.\r\n3. Set Copies to the number needed.\r\n4. LuxBurn will prompt for the next blank disc between copies."),
+                new WalkthroughChoice(
+                    "verify-file",
+                    "Check a file or image hash",
+                    "Use this when you need to compare a downloaded image against a published checksum.\r\n\r\n1. Choose the file.\r\n2. Pick the checksum type.\r\n3. Paste the expected hash if you have one.\r\n4. Calculate and compare."),
+                new WalkthroughChoice(
+                    "verify-before-burn",
+                    "Check a download before burning",
+                    "Use this when a website gives you a SHA-256, SHA-1, SHA-512, or MD5 value for an ISO.\r\n\r\n1. Open Verify.\r\n2. Choose the downloaded ISO.\r\n3. Paste the published checksum.\r\n4. Only burn if the values match."),
+                new WalkthroughChoice(
+                    "tray-drive-tools",
+                    "Open tray or inspect drive",
+                    "Use this when you need to refresh drives, eject/load the tray, see capabilities, or check which physical drive is selected.\r\n\r\n1. Open Drives.\r\n2. Select the recorder.\r\n3. Use the Drive menu for tray commands, capabilities, and family tree."),
+                new WalkthroughChoice(
+                    "inspect-drive",
+                    "Find out what the drive can do",
+                    "Use this when you are not sure which drive is which, whether media is present, or what the recorder supports.\r\n\r\n1. Refresh drives.\r\n2. Select the drive.\r\n3. Open capabilities or family tree from the Drive menu."),
+                new WalkthroughChoice(
+                    "firmware-help",
+                    "Look for drive firmware",
+                    "Use this when a drive behaves strangely with known-good media or has old firmware.\r\n\r\n1. Open Drives.\r\n2. Select the recorder.\r\n3. Use Drive > Check For Firmware Updates.\r\n4. Review firmware pages carefully before installing anything."),
+                new WalkthroughChoice(
+                    "open-log",
+                    "Read what just happened",
+                    "Use this after a burn, copy, erase, update check, or failure.\r\n\r\nThe Log tab records the backend command, progress messages, and error text. It is the first place to look before retrying.")
+            };
+        }
+
+        private void RunWalkthroughChoice(string id)
+        {
+            if (string.Equals(id, "build-burn", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBuildWizard("DATA_DISC");
+                SetStatus("Walkthrough opened Build Image. Add files, choose a drive, then use Build and burn.");
+            }
+            else if (string.Equals(id, "build-only", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBuildWizard("DATA_DISC");
+                SetStatus("Walkthrough opened Build Image. Choose an output path, then use Build image.");
+                Log("Walkthrough selected: make ISO from files.");
+            }
+            else if (string.Equals(id, "burn-image", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBurnWizard("Walkthrough Wizard");
+            }
+            else if (string.Equals(id, "bootable-os", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBurnWizard("Bootable OS walkthrough");
+                SetStatus("Choose the bootable ISO directly. Do not add it as a normal file.");
+            }
+            else if (string.Equals(id, "capacity-check", StringComparison.OrdinalIgnoreCase))
+            {
+                _tabs.SelectedIndex = 1;
+                CalculateBuildImageInformation();
+                SetStatus("Walkthrough opened Build Image. Use Calculate for file jobs, or Burn Image for ISO capacity checks.");
+                Log("Walkthrough selected: capacity check.");
+            }
+            else if (string.Equals(id, "copy-disc", StringComparison.OrdinalIgnoreCase))
+            {
+                StartCopyWizard();
+            }
+            else if (string.Equals(id, "copy-and-burn", StringComparison.OrdinalIgnoreCase))
+            {
+                StartCopyWizard();
+                SetStatus("Copy the source disc first. When done, use Burn Image with the copied output.");
+                Log("Walkthrough selected: copy then burn.");
+            }
+            else if (string.Equals(id, "erase-disc", StringComparison.OrdinalIgnoreCase))
+            {
+                _tabs.SelectedIndex = 4;
+                SetStatus("Walkthrough opened Erase. Use this only with rewritable media.");
+                Log("Walkthrough selected: erase rewritable disc.");
+            }
+            else if (string.Equals(id, "disc-rejected", StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshDrives();
+                _tabs.SelectedIndex = 7;
+                SetStatus("Walkthrough opened Log. Check drive selection, media state, and backend messages before retrying.");
+                Log("Walkthrough selected: rejected disc troubleshooting.");
+            }
+            else if (string.Equals(id, "multiple-copies", StringComparison.OrdinalIgnoreCase))
+            {
+                StartBurnWizard("Multiple copies walkthrough");
+                SelectComboText(_burnCopiesCombo, "2");
+                SetStatus("Walkthrough opened Burn Image. Set Copies to the number of discs needed.");
+            }
+            else if (string.Equals(id, "verify-file", StringComparison.OrdinalIgnoreCase))
+            {
+                StartVerifyWizard("Walkthrough Wizard");
+            }
+            else if (string.Equals(id, "verify-before-burn", StringComparison.OrdinalIgnoreCase))
+            {
+                StartVerifyWizard("Download check walkthrough");
+                SetStatus("Verify the downloaded ISO before burning it.");
+            }
+            else if (string.Equals(id, "tray-drive-tools", StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshDrives();
+                _tabs.SelectedIndex = 0;
+                SetStatus("Walkthrough opened Drives. Use the Drive menu for tray and device commands.");
+                Log("Walkthrough selected: tray and drive tools.");
+            }
+            else if (string.Equals(id, "inspect-drive", StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshDrives();
+                _tabs.SelectedIndex = 0;
+                SetStatus("Walkthrough opened Drives. Select a recorder to inspect it.");
+                Log("Walkthrough selected: inspect drive.");
+            }
+            else if (string.Equals(id, "firmware-help", StringComparison.OrdinalIgnoreCase))
+            {
+                RefreshDrives();
+                _tabs.SelectedIndex = 0;
+                SetStatus("Walkthrough opened Drives. Select a recorder, then use Drive > Check For Firmware Updates.");
+                Log("Walkthrough selected: firmware help.");
+            }
+            else if (string.Equals(id, "open-log", StringComparison.OrdinalIgnoreCase))
+            {
+                _tabs.SelectedIndex = 7;
+                SetStatus("Walkthrough opened Log.");
+                Log("Walkthrough selected: open log.");
+            }
+        }
+
+        private sealed class WalkthroughChoice
+        {
+            public readonly string Id;
+            public readonly string Title;
+            public readonly string Description;
+
+            public WalkthroughChoice(string id, string title, string description)
+            {
+                Id = id;
+                Title = title;
+                Description = description;
+            }
+
+            public override string ToString()
+            {
+                return Title;
+            }
         }
 
         private static Image LoadButtonAsset(string fileName)
