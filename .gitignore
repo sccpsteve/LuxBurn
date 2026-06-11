@@ -3,6 +3,7 @@ obj/
 .vs/
 build/package/
 build/tools/
+build/redist/
 build/install-test/
 dist/
 saved-builds/

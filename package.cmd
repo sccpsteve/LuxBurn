@@ -14,6 +14,8 @@ set "INSTALLER=%DIST%\%APP_NAME%-v%APP_VERSION%-setup.exe"
 set "UPDATE_MANIFEST=%DIST%\%APP_NAME%-update.json"
 set "INNO_DIR=%ROOT%\build\tools\InnoSetup5"
 set "INNO_SETUP=%ROOT%\build\tools\innosetup-5.6.1-unicode.exe"
+set "DOTNET40_URL=https://download.microsoft.com/download/9/5/a/95a9616b-7a37-4af6-bc36-d6ea96c8daae/dotNetFx40_Full_x86_x64.exe"
+set "DOTNET40=%ROOT%\build\redist\dotNetFx40_Full_x86_x64.exe"
 set "ISCC="
 set "SEVENZIP="
 
@@ -43,6 +45,18 @@ popd
 if errorlevel 1 exit /b 1
 
 echo Creating installer package...
+if not exist "%DOTNET40%" (
+    echo Downloading Microsoft .NET Framework 4 standalone installer...
+    if not exist "%ROOT%\build\redist" mkdir "%ROOT%\build\redist"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%DOTNET40_URL%' -OutFile '%DOTNET40%'"
+    if errorlevel 1 exit /b 1
+)
+
+if not exist "%DOTNET40%" (
+    echo Microsoft .NET Framework 4 standalone installer was not found.
+    exit /b 1
+)
+
 if not defined ISCC (
     echo Inno Setup 5.6.1 compiler was not found. Downloading it now...
     if not exist "%ROOT%\build\tools" mkdir "%ROOT%\build\tools"
