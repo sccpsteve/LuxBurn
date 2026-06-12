@@ -6,7 +6,6 @@
 #define LegacySourceDir "..\LuxBurn\bin\ReleaseLegacy"
 #define ModernSourceDir "..\LuxBurn\bin\ReleaseModern"
 #define DotNet35Redist "..\build\redist\dotnetfx35.exe"
-#define DotNet40Redist "..\build\redist\dotNetFx40_Full_x86_x64.exe"
 
 [Setup]
 AppId={{6B9103D3-7F75-40B8-89F1-220D6142E752}
@@ -38,7 +37,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#DotNet35Redist}"; Flags: dontcopy
-Source: "{#DotNet40Redist}"; Flags: dontcopy
 Source: "{#LegacySourceDir}\*"; DestDir: "{app}\Legacy"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ModernSourceDir}\*"; DestDir: "{app}\Modern"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -215,19 +213,23 @@ begin
   DotNetInstallExitCode := 0;
   DotNetRequiresRestart := False;
 
-  DotNetInstallAttempted := True;
-
   if IsModernWindows() then
   begin
     if IsDotNet40Installed() then
       Exit;
-    ExtractTemporaryFile('dotNetFx40_Full_x86_x64.exe');
-    InstallerPath := ExpandConstant('{tmp}\dotNetFx40_Full_x86_x64.exe');
+
+    Result :=
+      'This Windows installation does not report Microsoft .NET Framework 4 or newer.' + #13#10 + #13#10 +
+      'LuxBurn uses the modern build on Windows 8 and newer, where .NET Framework 4.x is normally built in.' + #13#10 +
+      'Repair or enable the Microsoft .NET Framework 4.x runtime, then run LuxBurn Setup again.' + #13#10 + #13#10 +
+      'Detected Windows: ' + WindowsVersionDescription();
+    Exit;
   end
   else
   begin
     if IsDotNet35Installed() then
       Exit;
+    DotNetInstallAttempted := True;
     ExtractTemporaryFile('dotnetfx35.exe');
     InstallerPath := ExpandConstant('{tmp}\dotnetfx35.exe');
   end;

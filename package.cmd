@@ -15,8 +15,8 @@ set "INSTALLER=%DIST%\%APP_NAME%-v%APP_VERSION%-setup.exe"
 set "UPDATE_MANIFEST=%DIST%\%APP_NAME%-update.json"
 set "INNO_DIR=%ROOT%\build\tools\InnoSetup5"
 set "INNO_SETUP=%ROOT%\build\tools\innosetup-5.6.1-unicode.exe"
+set "DOTNET35_URL=https://download.microsoft.com/download/2/0/e/20e90413-712f-438c-988e-fdaa79a8ac3d/dotnetfx35.exe"
 set "DOTNET35=%ROOT%\build\redist\dotnetfx35.exe"
-set "DOTNET40=%ROOT%\build\redist\dotNetFx40_Full_x86_x64.exe"
 set "ISCC="
 set "SEVENZIP="
 
@@ -69,15 +69,10 @@ if errorlevel 1 exit /b 1
 
 echo Creating installer package...
 if not exist "%DOTNET35%" (
-    echo Microsoft .NET Framework 3.5 SP1 standalone installer was not found.
-    echo Expected: %DOTNET35%
-    exit /b 1
-)
-
-if not exist "%DOTNET40%" (
-    echo Microsoft .NET Framework 4 full offline installer was not found.
-    echo Expected: %DOTNET40%
-    exit /b 1
+    echo Downloading Microsoft .NET Framework 3.5 SP1 standalone installer...
+    if not exist "%ROOT%\build\redist" mkdir "%ROOT%\build\redist"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%DOTNET35_URL%' -OutFile '%DOTNET35%'"
+    if errorlevel 1 exit /b 1
 )
 
 if not defined ISCC (
