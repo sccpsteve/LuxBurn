@@ -437,7 +437,7 @@ namespace LuxBurn.Services
             string args = "dev=" + device + " f=" + QuoteArgument(outputPath) + " retries=16 -v";
             Log(log, "Launching readcd backend: readcd.exe " + args);
             ReportProgress(progress, 0, -1, -1, "Starting copy");
-            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken, media.CapacitySectors);
+            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken, media.CapacitySectors, ProcessOutputKind.ReadcdCopy);
 
             FileInfo image = new FileInfo(outputPath);
             if (!image.Exists || image.Length == 0)
@@ -765,7 +765,7 @@ namespace LuxBurn.Services
 
                 try
                 {
-                    RunProcessAndLog(fileName, arguments, log, progress, cancellationToken);
+                    RunProcessAndLog(fileName, arguments, log, progress, cancellationToken, -1, ProcessOutputKind.CdrecordBurn);
                     return;
                 }
                 catch (BurnProcessException ex)
@@ -800,10 +800,15 @@ namespace LuxBurn.Services
 
         private static void RunProcessAndLog(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
-            RunProcessAndLog(fileName, arguments, log, progress, cancellationToken, -1);
+            RunProcessAndLog(fileName, arguments, log, progress, cancellationToken, -1, ProcessOutputKind.Auto);
         }
 
         private static void RunProcessAndLog(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, long readTotalSectors)
+        {
+            RunProcessAndLog(fileName, arguments, log, progress, cancellationToken, readTotalSectors, ProcessOutputKind.Auto);
+        }
+
+        private static void RunProcessAndLog(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, long readTotalSectors, ProcessOutputKind outputKind)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo(fileName, arguments);
             startInfo.UseShellExecute = false;
@@ -821,6 +826,7 @@ namespace LuxBurn.Services
                 process.StartInfo = startInfo;
                 ProcessProgressState progressState = new ProcessProgressState();
                 progressState.ReadTotalSectors = readTotalSectors;
+                progressState.OutputKind = outputKind;
                 Action<string> captureOutput = delegate(string line)
                 {
                     lock (outputLock)
@@ -908,6 +914,14 @@ namespace LuxBurn.Services
         {
             public long ReadTotalSectors;
             public int LastLoggedProgressPercent = -1;
+            public ProcessOutputKind OutputKind = ProcessOutputKind.Auto;
+        }
+
+        private enum ProcessOutputKind
+        {
+            Auto,
+            CdrecordBurn,
+            ReadcdCopy
         }
 
         private static void PumpProcessOutput(StreamReader reader, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted, Action<string> captureOutput)
@@ -943,8 +957,12 @@ namespace LuxBurn.Services
                 writeStarted();
 
             int percent = -1;
-            bool progressLine = ReportProgressFromCdrecordLine(line, progress, out percent);
-            progressLine = ReportProgressFromReadcdLine(line, progress, state, out percent) || progressLine;
+            ProcessOutputKind outputKind = state == null ? ProcessOutputKind.Auto : state.OutputKind;
+            bool progressLine = false;
+            if (outputKind == ProcessOutputKind.Auto || outputKind == ProcessOutputKind.CdrecordBurn)
+                progressLine = ReportProgressFromCdrecordLine(line, progress, out percent);
+            if (!progressLine && (outputKind == ProcessOutputKind.Auto || outputKind == ProcessOutputKind.ReadcdCopy))
+                progressLine = ReportProgressFromReadcdLine(line, progress, state, out percent);
 
             if (progressLine)
             {

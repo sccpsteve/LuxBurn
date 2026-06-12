@@ -4148,6 +4148,9 @@ namespace LuxBurn
 
         private void BuildAndBurnImage()
         {
+            if (_tabs != null)
+                _tabs.SelectedIndex = 2;
+
             string output = _buildOutputText.Text.Trim();
             string volume = _volumeNameText.Text.Trim();
             bool temporaryOutput = false;
