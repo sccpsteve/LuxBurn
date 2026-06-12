@@ -45,6 +45,7 @@ namespace LuxBurn
         private const string ErrorSoundFile = "Error.wav";
         private const string HomeSoundFile = "Home_brand.wav";
         private const string PageBoundarySoundFile = "Page_Boundary.wav";
+        private const string GoodByeSoundFile = "GoodBye.wav";
 
         private readonly LegacyBurningService _burningService = new LegacyBurningService();
         private readonly ToolTip _toolTip = new ToolTip();
@@ -117,6 +118,7 @@ namespace LuxBurn
         private CancellationTokenSource _burnCancellation;
         private bool _burnInProgress;
         private bool _redrawSuspended;
+        private bool _goodbyeSoundPlayed;
         private bool _uiSoundsReady;
 
         public MainForm()
@@ -3157,18 +3159,18 @@ namespace LuxBurn
 
         private static Image LoadButtonAsset(string fileName)
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Buttons", fileName);
+            string path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Buttons", fileName);
             if (!File.Exists(path))
-                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Buttons", fileName);
+                path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Buttons", fileName);
 
             return File.Exists(path) ? Image.FromFile(path) : null;
         }
 
         private static Image LoadBrandAsset(string fileName)
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", fileName);
+            string path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", fileName);
             if (!File.Exists(path))
-                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Brand", fileName);
+                path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Brand", fileName);
 
             return File.Exists(path) ? Image.FromFile(path) : null;
         }
@@ -3179,9 +3181,9 @@ namespace LuxBurn
             if (UiAssetCache.TryGetValue(fileName, out cached))
                 return cached;
 
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Ui", fileName);
+            string path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Ui", fileName);
             if (!File.Exists(path))
-                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Ui", fileName);
+                path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Ui", fileName);
 
             cached = File.Exists(path) ? Image.FromFile(path) : null;
             UiAssetCache[fileName] = cached;
@@ -3190,9 +3192,9 @@ namespace LuxBurn
 
         private static Icon LoadWindowIcon()
         {
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", "LBWindowLogo.ico");
+            string path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", "LBWindowLogo.ico");
             if (!File.Exists(path))
-                path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Brand", "LBWindowLogo.ico");
+                path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "Assets", "Brand", "LBWindowLogo.ico");
 
             try
             {
@@ -4575,7 +4577,10 @@ namespace LuxBurn
         private void MainFormFormClosing(object sender, FormClosingEventArgs e)
         {
             if (!_burnInProgress)
+            {
+                PlayGoodByeSoundOnce();
                 return;
+            }
 
             e.Cancel = true;
             if (ShowLuxMessage("A disc operation is in progress. Do you want to cancel it?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
@@ -5004,16 +5009,41 @@ namespace LuxBurn
             PlaySoundFile(PageBoundarySoundFile);
         }
 
+        private void PlayGoodByeSoundOnce()
+        {
+            if (_goodbyeSoundPlayed || !_uiSoundsReady)
+                return;
+
+            _goodbyeSoundPlayed = true;
+            PlaySoundFileSync(GoodByeSoundFile);
+        }
+
         private static void PlaySoundFile(string fileName)
         {
             try
             {
-                string soundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", fileName);
+                string soundPath = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", fileName);
                 if (!File.Exists(soundPath))
                     return;
 
                 SoundPlayer player = new SoundPlayer(soundPath);
                 player.Play();
+            }
+            catch
+            {
+            }
+        }
+
+        private static void PlaySoundFileSync(string fileName)
+        {
+            try
+            {
+                string soundPath = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Audio", fileName);
+                if (!File.Exists(soundPath))
+                    return;
+
+                using (SoundPlayer player = new SoundPlayer(soundPath))
+                    player.PlaySync();
             }
             catch
             {

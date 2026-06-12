@@ -68,7 +68,7 @@ namespace LuxBurn
             {
                 try
                 {
-                    string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", "LBSplash.png");
+                    string path = LegacyPaths.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Brand", "LBSplash.png");
                     return File.Exists(path) ? Image.FromFile(path) : null;
                 }
                 catch

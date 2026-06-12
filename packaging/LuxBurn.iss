@@ -1,10 +1,10 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.4"
+  #define AppVersion "2.1.6"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
-#define DotNet40Redist "..\build\redist\dotNetFx40_Full_x86.exe"
+#define DotNet35Redist "..\build\redist\dotnetfx35.exe"
 
 [Setup]
 AppId={{6B9103D3-7F75-40B8-89F1-220D6142E752}
@@ -35,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "{#DotNet40Redist}"; Flags: dontcopy
+Source: "{#DotNet35Redist}"; Flags: dontcopy
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -51,28 +51,31 @@ var
   DotNetInstallExitCode: Integer;
   DotNetRequiresRestart: Boolean;
 
-function DotNet40InstallFlag(RootKey: Integer): Boolean;
+function DotNet35InstallFlag(RootKey: Integer): Boolean;
 var
   InstallValue: Cardinal;
+  ServicePackValue: Cardinal;
 begin
-  Result := RegQueryDWordValue(RootKey, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Install', InstallValue) and (InstallValue = 1);
+  Result := RegQueryDWordValue(RootKey, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5', 'Install', InstallValue) and (InstallValue = 1);
+  if Result and RegQueryDWordValue(RootKey, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5', 'SP', ServicePackValue) then
+    Result := ServicePackValue >= 1;
 end;
 
-function IsDotNet40Installed(): Boolean;
+function IsDotNet35Installed(): Boolean;
 begin
-  Result := DotNet40InstallFlag(HKLM) or DotNet40InstallFlag(HKLM32);
+  Result := DotNet35InstallFlag(HKLM) or DotNet35InstallFlag(HKLM32);
   if (not Result) and IsWin64 then
-    Result := DotNet40InstallFlag(HKLM64);
+    Result := DotNet35InstallFlag(HKLM64);
 end;
 
-function NeedsDotNet40(): Boolean;
+function NeedsDotNet35(): Boolean;
 begin
-  Result := not IsDotNet40Installed();
+  Result := not IsDotNet35Installed();
 end;
 
 function CanLaunchLuxBurn(): Boolean;
 begin
-  Result := IsDotNet40Installed() and (not DotNetRequiresRestart);
+  Result := IsDotNet35Installed() and (not DotNetRequiresRestart);
 end;
 
 function IsDotNetExitCodeSuccessful(ExitCode: Integer): Boolean;
@@ -106,27 +109,38 @@ begin
     Result := 'unknown';
 end;
 
+function DotNetLogPath(): String;
+var
+  LogDir: String;
+begin
+  LogDir := ExpandConstant('{commonappdata}\LuxBurn\Logs');
+  ForceDirectories(LogDir);
+  Result := LogDir + '\dotnet35-install.log';
+end;
+
 function DotNetFailureMessage(ExitCode: Integer): String;
 begin
   if ExitCode = -1073741819 then
   begin
     Result :=
-      'Microsoft .NET Framework 4 crashed while installing.' + #13#10 + #13#10 +
+      'Microsoft .NET Framework 3.5 SP1 crashed while installing.' + #13#10 + #13#10 +
       'Windows reported 0xC0000005, which is an access violation inside the Microsoft installer, not inside LuxBurn.' + #13#10 + #13#10 +
       'Try these repairs, then run LuxBurn Setup again:' + #13#10 +
       '1. Make sure Windows XP Service Pack 3 is installed.' + #13#10 +
       '2. Restart Windows.' + #13#10 +
       '3. If it still fails, repair or reinstall Windows Installer, then run this setup again.' + #13#10 + #13#10 +
       'Detected Windows: ' + WindowsVersionDescription() + #13#10 +
-      'Windows Installer file version: ' + WindowsInstallerDescription();
+      'Windows Installer file version: ' + WindowsInstallerDescription() + #13#10 +
+      'Installer log: ' + DotNetLogPath();
   end
   else
   begin
     Result :=
-      'Microsoft .NET Framework 4 did not install successfully. Setup cannot continue until it is installed.' + #13#10 + #13#10 +
+      'Microsoft .NET Framework 3.5 SP1 did not install successfully. Setup cannot continue until it is installed.' + #13#10 + #13#10 +
       'Exit code: ' + IntToStr(ExitCode) + #13#10 +
       'Detected Windows: ' + WindowsVersionDescription() + #13#10 +
-      'Windows Installer file version: ' + WindowsInstallerDescription();
+      'Windows Installer file version: ' + WindowsInstallerDescription() + #13#10 +
+      'Installer log: ' + DotNetLogPath();
   end;
 end;
 
@@ -149,23 +163,40 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   InstallerPath: String;
+  InstallerArgs: String;
 begin
   Result := '';
   DotNetInstallAttempted := False;
   DotNetInstallExitCode := 0;
   DotNetRequiresRestart := False;
 
-  if IsDotNet40Installed() then
+  if IsDotNet35Installed() then
     Exit;
 
   DotNetInstallAttempted := True;
-  ExtractTemporaryFile('dotNetFx40_Full_x86.exe');
-  InstallerPath := ExpandConstant('{tmp}\dotNetFx40_Full_x86.exe');
+  ExtractTemporaryFile('dotnetfx35.exe');
+  InstallerPath := ExpandConstant('{tmp}\dotnetfx35.exe');
+  InstallerArgs := '/passive /norestart /log "' + DotNetLogPath() + '"';
 
-  if not Exec(InstallerPath, '/passive /norestart', '', SW_SHOW, ewWaitUntilTerminated, DotNetInstallExitCode) then
+  if not Exec(InstallerPath, InstallerArgs, '', SW_SHOW, ewWaitUntilTerminated, DotNetInstallExitCode) then
   begin
-    Result := 'Setup could not start the Microsoft .NET Framework 4 installer. Please run LuxBurn Setup again.';
+    Result := 'Setup could not start the Microsoft .NET Framework 3.5 SP1 installer. Please run LuxBurn Setup again.';
     Exit;
+  end;
+
+  if (not IsDotNet35Installed()) and (DotNetInstallExitCode = -1073741819) then
+  begin
+    MsgBox(
+      'Microsoft .NET Framework 3.5 SP1 crashed during the automatic install step.' + #13#10 + #13#10 +
+      'LuxBurn Setup will now open the Microsoft installer directly. Complete that installer, then return here.',
+      mbInformation,
+      MB_OK);
+
+    if not Exec(InstallerPath, '/norestart /log "' + DotNetLogPath() + '"', '', SW_SHOW, ewWaitUntilTerminated, DotNetInstallExitCode) then
+    begin
+      Result := 'Setup could not start the Microsoft .NET Framework 3.5 SP1 installer. Please run LuxBurn Setup again.';
+      Exit;
+    end;
   end;
 
   if (DotNetInstallExitCode = 3010) or (DotNetInstallExitCode = 1641) then
@@ -174,14 +205,14 @@ begin
     NeedsRestart := True;
   end;
 
-  if IsDotNet40Installed() then
+  if IsDotNet35Installed() then
     Exit;
 
   if DotNetRequiresRestart then
     Exit;
 
   if IsDotNetExitCodeSuccessful(DotNetInstallExitCode) then
-    Result := 'Microsoft .NET Framework 4 did not finish registering on this computer. Restart Windows, then run LuxBurn Setup again.'
+    Result := 'Microsoft .NET Framework 3.5 SP1 did not finish registering on this computer. Restart Windows, then run LuxBurn Setup again.'
   else
     Result := DotNetFailureMessage(DotNetInstallExitCode);
 end;
@@ -194,5 +225,5 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if (CurStep = ssPostInstall) and DotNetRequiresRestart then
-    MsgBox('Microsoft .NET Framework 4 was installed and Windows must be restarted before LuxBurn can run. Setup will finish now; please restart Windows before opening LuxBurn.', mbInformation, MB_OK);
+    MsgBox('Microsoft .NET Framework 3.5 SP1 was installed and Windows must be restarted before LuxBurn can run. Setup will finish now; please restart Windows before opening LuxBurn.', mbInformation, MB_OK);
 end;

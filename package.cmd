@@ -4,7 +4,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "APP_NAME=LuxBurn"
-set "APP_VERSION=2.1.4"
+set "APP_VERSION=2.1.6"
 set "ROOT=%CD%"
 set "RELEASE=%ROOT%\LuxBurn\bin\Release"
 set "DIST=%ROOT%\dist"
@@ -14,8 +14,8 @@ set "INSTALLER=%DIST%\%APP_NAME%-v%APP_VERSION%-setup.exe"
 set "UPDATE_MANIFEST=%DIST%\%APP_NAME%-update.json"
 set "INNO_DIR=%ROOT%\build\tools\InnoSetup5"
 set "INNO_SETUP=%ROOT%\build\tools\innosetup-5.6.1-unicode.exe"
-set "DOTNET40_URL=http://download.microsoft.com/download/5/6/4/5641DA81-E6FA-4550-9F80-A1D862D9CFAA/dotNetFx40_Full_x86.exe"
-set "DOTNET40=%ROOT%\build\redist\dotNetFx40_Full_x86.exe"
+set "DOTNET35_URL=https://download.microsoft.com/download/2/0/e/20e90413-712f-438c-988e-fdaa79a8ac3d/dotnetfx35.exe"
+set "DOTNET35=%ROOT%\build\redist\dotnetfx35.exe"
 set "ISCC="
 set "SEVENZIP="
 
@@ -45,15 +45,15 @@ popd
 if errorlevel 1 exit /b 1
 
 echo Creating installer package...
-if not exist "%DOTNET40%" (
-    echo Downloading Microsoft .NET Framework 4 standalone installer...
+if not exist "%DOTNET35%" (
+    echo Downloading Microsoft .NET Framework 3.5 SP1 standalone installer...
     if not exist "%ROOT%\build\redist" mkdir "%ROOT%\build\redist"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%DOTNET40_URL%' -OutFile '%DOTNET40%'"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%DOTNET35_URL%' -OutFile '%DOTNET35%'"
     if errorlevel 1 exit /b 1
 )
 
-if not exist "%DOTNET40%" (
-    echo Microsoft .NET Framework 4 standalone installer was not found.
+if not exist "%DOTNET35%" (
+    echo Microsoft .NET Framework 3.5 SP1 standalone installer was not found.
     exit /b 1
 )
 

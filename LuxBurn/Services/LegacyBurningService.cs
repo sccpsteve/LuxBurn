@@ -89,14 +89,14 @@ namespace LuxBurn.Services
             if (masterType == null || recorderType == null)
                 return recorders;
 
-            dynamic master = Activator.CreateInstance(masterType);
-            if (!Convert.ToBoolean(master.IsSupportedEnvironment))
+            object master = Activator.CreateInstance(masterType);
+            if (!ReadBoolProperty(master, "IsSupportedEnvironment", false))
                 return recorders;
 
             foreach (string recorderId in EnumerateRecorderIds(master))
             {
-                dynamic recorder = Activator.CreateInstance(recorderType);
-                recorder.InitializeDiscRecorder(recorderId);
+                object recorder = Activator.CreateInstance(recorderType);
+                InvokeMethod(recorder, "InitializeDiscRecorder", recorderId);
 
                 string vendor = ReadStringProperty(recorder, "VendorId");
                 string product = ReadStringProperty(recorder, "ProductId");
@@ -158,13 +158,14 @@ namespace LuxBurn.Services
             if (imageType == null)
                 throw new InvalidOperationException("IMAPI2FS is not installed. Install Microsoft Image Mastering API v2 support to build ISO images.");
 
-            dynamic fileSystemImage = Activator.CreateInstance(imageType);
-            fileSystemImage.FileSystemsToCreate = 7; // ISO9660, Joliet, and UDF.
-            fileSystemImage.VolumeName = MakeVolumeName(volumeName);
-            fileSystemImage.Root.AddTree(sourceFolder, false);
+            object fileSystemImage = Activator.CreateInstance(imageType);
+            SetProperty(fileSystemImage, "FileSystemsToCreate", 7); // ISO9660, Joliet, and UDF.
+            SetProperty(fileSystemImage, "VolumeName", MakeVolumeName(volumeName));
+            object root = GetProperty(fileSystemImage, "Root");
+            InvokeMethod(root, "AddTree", sourceFolder, false);
 
-            dynamic result = fileSystemImage.CreateResultImage();
-            IStream imageStream = (IStream)result.ImageStream;
+            object result = InvokeMethod(fileSystemImage, "CreateResultImage");
+            IStream imageStream = (IStream)GetProperty(result, "ImageStream");
             CopyComStreamToFile(imageStream, outputPath);
         }
 
@@ -212,17 +213,17 @@ namespace LuxBurn.Services
 
             Type recorderType = Type.GetTypeFromProgID("IMAPI2.MsftDiscRecorder2");
             Type formatType = Type.GetTypeFromProgID("IMAPI2.MsftDiscFormat2Data");
-            dynamic recorder = Activator.CreateInstance(recorderType);
-            recorder.InitializeDiscRecorder(id);
+            object recorder = Activator.CreateInstance(recorderType);
+            InvokeMethod(recorder, "InitializeDiscRecorder", id);
 
-            dynamic format = Activator.CreateInstance(formatType);
+            object format = Activator.CreateInstance(formatType);
             bool exclusive = false;
 
             try
             {
-                format.Recorder = recorder;
-                format.ClientName = ClientName;
-                format.ForceMediaToBeClosed = true;
+                SetProperty(format, "Recorder", recorder);
+                SetProperty(format, "ClientName", ClientName);
+                SetProperty(format, "ForceMediaToBeClosed", true);
 
                 FileInfo imageFile = new FileInfo(imagePath);
                 long imageSectors = (imageFile.Length + BytesPerSector - 1) / BytesPerSector;
@@ -237,12 +238,12 @@ namespace LuxBurn.Services
                 try
                 {
                     Log(log, "Acquiring exclusive access to the recorder.");
-                    recorder.AcquireExclusiveAccess(true, ClientName);
+                    InvokeMethod(recorder, "AcquireExclusiveAccess", true, ClientName);
                     exclusive = true;
-                    format.Recorder = recorder;
+                    SetProperty(format, "Recorder", recorder);
 
                     Log(log, "Starting write operation.");
-                    format.Write(imageStream);
+                    InvokeMethod(format, "Write", imageStream);
                     Log(log, "Drive reported write operation complete.");
                 }
                 catch (COMException ex)
@@ -254,7 +255,7 @@ namespace LuxBurn.Services
                 if (ejectWhenDone)
                 {
                     Log(log, "Ejecting media.");
-                    recorder.EjectMedia();
+                    InvokeMethod(recorder, "EjectMedia");
                 }
             }
             finally
@@ -263,7 +264,7 @@ namespace LuxBurn.Services
                 {
                     try
                     {
-                        recorder.ReleaseExclusiveAccess();
+                        InvokeMethod(recorder, "ReleaseExclusiveAccess");
                     }
                     catch
                     {
@@ -1050,7 +1051,7 @@ namespace LuxBurn.Services
             return recorders[0];
         }
 
-        private static void PreflightBurn(dynamic format, dynamic recorder, long imageSectors, Action<string> log)
+        private static void PreflightBurn(object format, object recorder, long imageSectors, Action<string> log)
         {
             bool recorderSupported = InvokeBool(format, "IsRecorderSupported", recorder);
             Log(log, "Recorder supported by IMAPI2 data writer: " + YesNo(recorderSupported));
@@ -1090,7 +1091,7 @@ namespace LuxBurn.Services
             }
         }
 
-        private static bool WaitForSupportedMedia(dynamic format, dynamic recorder, Action<string> log)
+        private static bool WaitForSupportedMedia(object format, object recorder, Action<string> log)
         {
             DateTime deadline = DateTime.Now.AddSeconds(MediaReadyTimeoutSeconds);
             int attempt = 1;
@@ -1129,7 +1130,7 @@ namespace LuxBurn.Services
             return new InvalidOperationException(detail, ex);
         }
 
-        private static string GetMediaSnapshot(dynamic format)
+        private static string GetMediaSnapshot(object format)
         {
             return string.Format(
                 "Media={0}; Status={1}; FreeSectors={2:N0}; TotalSectors={3:N0}; Blank={4}/{5}",
@@ -1141,14 +1142,66 @@ namespace LuxBurn.Services
                 YesNo(ReadBoolProperty(format, "MediaPhysicallyBlank", false)));
         }
 
-        private static void LogRecorderInfo(Action<string> log, dynamic recorder)
+        private static void LogRecorderInfo(Action<string> log, object recorder)
         {
             Log(log, "Recorder vendor: " + ReadStringProperty(recorder, "VendorId"));
             Log(log, "Recorder product: " + ReadStringProperty(recorder, "ProductId"));
             Log(log, "Recorder revision: " + ReadStringProperty(recorder, "ProductRevision"));
         }
 
-        private static bool InvokeBool(dynamic instance, string methodName, object argument)
+        private static object GetProperty(object instance, string propertyName)
+        {
+            return instance.GetType().InvokeMember(
+                propertyName,
+                System.Reflection.BindingFlags.GetProperty,
+                null,
+                instance,
+                null);
+        }
+
+        private static void SetProperty(object instance, string propertyName, object value)
+        {
+            instance.GetType().InvokeMember(
+                propertyName,
+                System.Reflection.BindingFlags.SetProperty,
+                null,
+                instance,
+                new object[] { value });
+        }
+
+        private static object InvokeMethod(object instance, string methodName, params object[] arguments)
+        {
+            return instance.GetType().InvokeMember(
+                methodName,
+                System.Reflection.BindingFlags.InvokeMethod,
+                null,
+                instance,
+                arguments);
+        }
+
+        private static object GetIndexedProperty(object instance, object index)
+        {
+            try
+            {
+                return instance.GetType().InvokeMember(
+                    "Item",
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    instance,
+                    new object[] { index });
+            }
+            catch
+            {
+                return instance.GetType().InvokeMember(
+                    string.Empty,
+                    System.Reflection.BindingFlags.GetProperty,
+                    null,
+                    instance,
+                    new object[] { index });
+            }
+        }
+
+        private static bool InvokeBool(object instance, string methodName, object argument)
         {
             try
             {
@@ -1167,7 +1220,7 @@ namespace LuxBurn.Services
             }
         }
 
-        private static int ReadIntProperty(dynamic instance, string propertyName, int fallback)
+        private static int ReadIntProperty(object instance, string propertyName, int fallback)
         {
             try
             {
@@ -1186,7 +1239,7 @@ namespace LuxBurn.Services
             }
         }
 
-        private static long ReadLongProperty(dynamic instance, string propertyName, long fallback)
+        private static long ReadLongProperty(object instance, string propertyName, long fallback)
         {
             try
             {
@@ -1205,7 +1258,7 @@ namespace LuxBurn.Services
             }
         }
 
-        private static bool ReadBoolProperty(dynamic instance, string propertyName, bool fallback)
+        private static bool ReadBoolProperty(object instance, string propertyName, bool fallback)
         {
             try
             {
@@ -1289,26 +1342,30 @@ namespace LuxBurn.Services
                 parts.Add(name);
         }
 
-        private static IEnumerable<string> EnumerateRecorderIds(dynamic master)
+        private static IEnumerable<string> EnumerateRecorderIds(object master)
         {
             List<string> ids = new List<string>();
 
             try
             {
-                foreach (string id in master)
-                    ids.Add(id);
+                System.Collections.IEnumerable enumerable = master as System.Collections.IEnumerable;
+                if (enumerable == null)
+                    throw new InvalidCastException();
+
+                foreach (object id in enumerable)
+                    ids.Add(Convert.ToString(id));
             }
             catch
             {
-                int count = Convert.ToInt32(master.Count);
+                int count = ReadIntProperty(master, "Count", 0);
                 for (int i = 0; i < count; i++)
-                    ids.Add(Convert.ToString(master[i]));
+                    ids.Add(Convert.ToString(GetIndexedProperty(master, i)));
             }
 
             return ids;
         }
 
-        private static string ReadStringProperty(dynamic instance, string propertyName)
+        private static string ReadStringProperty(object instance, string propertyName)
         {
             try
             {
@@ -1327,7 +1384,7 @@ namespace LuxBurn.Services
             }
         }
 
-        private static string ReadDriveLetter(dynamic recorder)
+        private static string ReadDriveLetter(object recorder)
         {
             try
             {
@@ -1537,14 +1594,14 @@ namespace LuxBurn.Services
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string programFilesX86 = LegacyPaths.ProgramFilesX86();
 
             string[] candidates = new[]
             {
-                Path.Combine(baseDir, "Tools", "cdrtools", "cdrecord.exe"),
-                Path.Combine(baseDir, "..", "..", "Tools", "cdrtools", "cdrecord.exe"),
-                Path.Combine(programFilesX86, "cdrtfe", "tools", "cdrtools", "cdrecord.exe"),
-                Path.Combine(programFiles, "cdrtfe", "tools", "cdrtools", "cdrecord.exe")
+                LegacyPaths.Combine(baseDir, "Tools", "cdrtools", "cdrecord.exe"),
+                LegacyPaths.Combine(baseDir, "..", "..", "Tools", "cdrtools", "cdrecord.exe"),
+                LegacyPaths.Combine(programFilesX86, "cdrtfe", "tools", "cdrtools", "cdrecord.exe"),
+                LegacyPaths.Combine(programFiles, "cdrtfe", "tools", "cdrtools", "cdrecord.exe")
             };
 
             for (int i = 0; i < candidates.Length; i++)
@@ -1590,14 +1647,14 @@ namespace LuxBurn.Services
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string programFilesX86 = LegacyPaths.ProgramFilesX86();
 
             string[] candidates = new[]
             {
-                Path.Combine(baseDir, "Tools", "cdrtools", "readcd.exe"),
-                Path.Combine(baseDir, "..", "..", "Tools", "cdrtools", "readcd.exe"),
-                Path.Combine(programFilesX86, "cdrtfe", "tools", "cdrtools", "readcd.exe"),
-                Path.Combine(programFiles, "cdrtfe", "tools", "cdrtools", "readcd.exe")
+                LegacyPaths.Combine(baseDir, "Tools", "cdrtools", "readcd.exe"),
+                LegacyPaths.Combine(baseDir, "..", "..", "Tools", "cdrtools", "readcd.exe"),
+                LegacyPaths.Combine(programFilesX86, "cdrtfe", "tools", "cdrtools", "readcd.exe"),
+                LegacyPaths.Combine(programFiles, "cdrtfe", "tools", "cdrtools", "readcd.exe")
             };
 
             for (int i = 0; i < candidates.Length; i++)
