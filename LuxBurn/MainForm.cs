@@ -717,14 +717,14 @@ namespace LuxBurn
             _burnDriveCombo.Size = new Size(500, 22);
             group.Controls.Add(_burnDriveCombo);
 
-            _ejectAfterBurnCheck = new CheckBox();
+            _ejectAfterBurnCheck = new ThemedCheckBox();
             _ejectAfterBurnCheck.Text = "Eject media after burn";
             _ejectAfterBurnCheck.Checked = true;
             _ejectAfterBurnCheck.Location = new Point(130, 104);
             _ejectAfterBurnCheck.Size = new Size(190, 22);
             group.Controls.Add(_ejectAfterBurnCheck);
 
-            _verifyAfterBurnCheck = new CheckBox();
+            _verifyAfterBurnCheck = new ThemedCheckBox();
             _verifyAfterBurnCheck.Text = "Calculate source image SHA-256 after burn";
             _verifyAfterBurnCheck.Location = new Point(130, 132);
             _verifyAfterBurnCheck.Size = new Size(320, 22);
@@ -780,7 +780,7 @@ namespace LuxBurn
             _eraseDriveCombo.Size = new Size(500, 22);
             group.Controls.Add(_eraseDriveCombo);
 
-            _fullEraseCheck = new CheckBox();
+            _fullEraseCheck = new ThemedCheckBox();
             _fullEraseCheck.Text = "Full erase";
             _fullEraseCheck.Location = new Point(130, 66);
             _fullEraseCheck.Size = new Size(150, 22);
@@ -820,7 +820,7 @@ namespace LuxBurn
             browseOutput.Click += delegate { BrowseSaveIso(_copyOutputText); };
             group.Controls.Add(browseOutput);
 
-            _verifyAfterCopyCheck = new CheckBox();
+            _verifyAfterCopyCheck = new ThemedCheckBox();
             _verifyAfterCopyCheck.Text = "Calculate SHA-256 after copy";
             _verifyAfterCopyCheck.Checked = true;
             _verifyAfterCopyCheck.Location = new Point(130, 104);
@@ -3546,13 +3546,28 @@ namespace LuxBurn
                     return;
 
                 base.OnPaintBackground(e);
-                ButtonState state = Checked ? ButtonState.Checked : ButtonState.Normal;
-                if (!Enabled)
-                    state |= ButtonState.Inactive;
+                Image checkboxImage = LoadUiAsset(Checked ? "checkbox_check.png" : "checkbox.png");
+                int imageSize = Math.Max(12, Math.Min(18, Height - 4));
+                int imageWidth = imageSize;
+                if (checkboxImage != null)
+                {
+                    Rectangle imageBounds = new Rectangle(0, Math.Max(0, (Height - imageSize) / 2), imageSize, imageSize);
+                    System.Drawing.Drawing2D.InterpolationMode previousInterpolation = e.Graphics.InterpolationMode;
+                    System.Drawing.Drawing2D.PixelOffsetMode previousPixelOffset = e.Graphics.PixelOffsetMode;
+                    e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+                    e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                    e.Graphics.DrawImage(checkboxImage, imageBounds);
+                    e.Graphics.InterpolationMode = previousInterpolation;
+                    e.Graphics.PixelOffsetMode = previousPixelOffset;
+                }
+                else
+                {
+                    Rectangle fallbackBounds = new Rectangle(0, Math.Max(0, (Height - 13) / 2), 13, 13);
+                    ControlPaint.DrawCheckBox(e.Graphics, fallbackBounds, Checked ? ButtonState.Checked : ButtonState.Normal);
+                }
 
-                Rectangle checkBounds = new Rectangle(0, Math.Max(0, (Height - 13) / 2), 13, 13);
-                ControlPaint.DrawCheckBox(e.Graphics, checkBounds, state);
-                Rectangle textBounds = new Rectangle(20, 0, Math.Max(1, Width - 20), Height);
+                int textLeft = imageWidth + 7;
+                Rectangle textBounds = new Rectangle(textLeft, 0, Math.Max(1, Width - textLeft), Height);
                 DrawShadowedText(e.Graphics, Text, Font, textBounds, Enabled ? ThemeText : ThemeMutedText, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             }
         }
@@ -4645,6 +4660,9 @@ namespace LuxBurn
 
         private void CheckForUpdates(bool manual)
         {
+            if (!manual && IsLegacyWindows())
+                return;
+
             if (!manual && DateTime.UtcNow < GetUpdateReminderDate())
                 return;
 
@@ -4669,11 +4687,21 @@ namespace LuxBurn
                         return;
                     }
 
+                    if (!manual && IsLikelyLegacyUpdateTransportError(e.Error))
+                    {
+                        Log("Automatic update check skipped: this Windows installation could not connect to GitHub securely.");
+                        return;
+                    }
+
                     Log("Update check failed: " + e.Error.Message);
                     if (manual)
                     {
                         PlayTaskFailedSound();
-                        ShowLuxMessage("Could not check for updates." + Environment.NewLine + e.Error.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        string message = "Could not check for updates." + Environment.NewLine + e.Error.Message;
+                        if (IsLegacyWindows())
+                            message += Environment.NewLine + Environment.NewLine + "Older Windows installations may not support the TLS/certificate requirements used by GitHub. You can still update by downloading the latest LuxBurn release from another browser or computer.";
+
+                        ShowLuxMessage(message, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                     return;
                 }
@@ -4844,6 +4872,26 @@ namespace LuxBurn
             client.Headers.Add("Cache-Control", "no-cache, no-store, must-revalidate");
             client.Headers.Add("Pragma", "no-cache");
             client.Headers.Add("Expires", "0");
+        }
+
+        private static bool IsLegacyWindows()
+        {
+            Version version = Environment.OSVersion.Version;
+            return version.Major < 6;
+        }
+
+        private static bool IsLikelyLegacyUpdateTransportError(Exception error)
+        {
+            WebException webError = error as WebException;
+            if (webError == null)
+                return false;
+
+            return webError.Status == WebExceptionStatus.SecureChannelFailure ||
+                   webError.Status == WebExceptionStatus.TrustFailure ||
+                   webError.Status == WebExceptionStatus.NameResolutionFailure ||
+                   webError.Status == WebExceptionStatus.ConnectFailure ||
+                   webError.Status == WebExceptionStatus.SendFailure ||
+                   webError.Status == WebExceptionStatus.ReceiveFailure;
         }
 
         private static string MakeUncachedUrl(string url)

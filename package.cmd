@@ -4,7 +4,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "APP_NAME=LuxBurn"
-set "APP_VERSION=2.1.7"
+set "APP_VERSION=2.1.8"
 set "ROOT=%CD%"
 set "RELEASE=%ROOT%\LuxBurn\bin\Release"
 set "DIST=%ROOT%\dist"
