@@ -35,6 +35,17 @@ namespace LuxBurn.Services
         public string ProcessOutput { get; private set; }
     }
 
+    internal sealed class ManualMediaLoadRequiredException : InvalidOperationException
+    {
+        public ManualMediaLoadRequiredException(string message, string processOutput, Exception innerException)
+            : base(message, innerException)
+        {
+            ProcessOutput = processOutput ?? string.Empty;
+        }
+
+        public string ProcessOutput { get; private set; }
+    }
+
     internal sealed class DiscRecorderInfo
     {
         public string Id { get; set; }
@@ -183,12 +194,17 @@ namespace LuxBurn.Services
 
         public void BurnImage(string imagePath, string recorderId, bool ejectWhenDone, string method, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
+            BurnImage(imagePath, recorderId, ejectWhenDone, method, writeSpeed, log, progress, cancellationToken, null);
+        }
+
+        public void BurnImage(string imagePath, string recorderId, bool ejectWhenDone, string method, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, Func<bool> confirmManualMediaLoad)
+        {
             if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath))
                 throw new FileNotFoundException("The image file does not exist.", imagePath);
 
             if (ShouldUseCdrecord(method))
             {
-                LaunchCdrecordBurner(imagePath, recorderId, ejectWhenDone, writeSpeed, log, progress, cancellationToken);
+                LaunchCdrecordBurner(imagePath, recorderId, ejectWhenDone, writeSpeed, log, progress, cancellationToken, confirmManualMediaLoad);
                 return;
             }
 
@@ -353,6 +369,19 @@ namespace LuxBurn.Services
             return "speed=" + digits;
         }
 
+        private static string FormatCdrecordWriteModeArgument(CdrecordMediaInfo media)
+        {
+            string type = (media == null ? string.Empty : media.MediaType) ?? string.Empty;
+            if (type.IndexOf("DVD", StringComparison.OrdinalIgnoreCase) >= 0)
+                return "-sao";
+
+            if (type.IndexOf("BD", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                type.IndexOf("Blu", StringComparison.OrdinalIgnoreCase) >= 0)
+                return string.Empty;
+
+            return "-tao";
+        }
+
         public void EraseDisc(string recorderId, bool fullErase, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
         {
             string cdrecordPath = FindCdrecordPath();
@@ -450,7 +479,7 @@ namespace LuxBurn.Services
             RunProcessAndLog(cdrecordPath, args, log, null, cancellationToken);
         }
 
-        private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
+        private void LaunchCdrecordBurner(string imagePath, string recorderId, bool ejectWhenDone, string writeSpeed, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, Func<bool> confirmManualMediaLoad)
         {
             string cdrecordPath = FindCdrecordPath();
             if (string.IsNullOrEmpty(cdrecordPath))
@@ -464,15 +493,19 @@ namespace LuxBurn.Services
             if (string.IsNullOrEmpty(device))
                 throw new InvalidOperationException("LuxBurn could not determine a cdrecord SPTI device address.");
 
-            CdrecordMediaInfo media = ProbeCdrecordMedia(cdrecordPath, device, log);
+            CdrecordMediaInfo media = ProbeCdrecordMediaWithManualLoad(cdrecordPath, device, log, confirmManualMediaLoad, cancellationToken);
             FileInfo imageFile = new FileInfo(imagePath);
             long imageSectors = (imageFile.Length + BytesPerSector - 1) / BytesPerSector;
             Log(log, string.Format("Image size: {0:N0} bytes ({1:N0} sectors).", imageFile.Length, imageSectors));
             ValidateCdrecordMediaForBurn(media, imageSectors);
 
+            string writeModeArgument = FormatCdrecordWriteModeArgument(media);
             string args =
                 "dev=" + device +
-                " fs=16m -v -data -tao";
+                " fs=16m -v -data";
+
+            if (!string.IsNullOrEmpty(writeModeArgument))
+                args += " " + writeModeArgument;
 
             string speedArgument = FormatCdrecordSpeedArgument(writeSpeed);
             if (!string.IsNullOrEmpty(speedArgument))
@@ -481,8 +514,10 @@ namespace LuxBurn.Services
             args += " " + QuoteArgument(imagePath);
 
             Log(log, "Launching cdrecord backend: cdrecord.exe " + args);
+            if (!string.IsNullOrEmpty(writeModeArgument))
+                Log(log, "cdrecord write mode: " + writeModeArgument + ".");
             ReportProgress(progress, 0, 0, 0, "Starting write");
-            RunBurnProcessWithRetries(cdrecordPath, args, log, progress, cancellationToken);
+            RunBurnProcessWithRetries(cdrecordPath, args, log, progress, cancellationToken, confirmManualMediaLoad);
             ReportProgress(progress, 100, 100, 100, "Burn complete");
             Log(log, "cdrecord reported write operation complete.");
 
@@ -507,6 +542,7 @@ namespace LuxBurn.Services
             public long CapacitySectors;
             public bool IsErasable;
             public bool HasMedia;
+            public bool ManualLoadRequired;
         }
 
         private static CdrecordMediaInfo ProbeCdrecordMedia(string cdrecordPath, string device, Action<string> log)
@@ -520,9 +556,10 @@ namespace LuxBurn.Services
             media.CapacitySectors = ReadCdrecordCapacitySectors(output);
             media.IsErasable = output.IndexOf("Disk Is erasable", StringComparison.OrdinalIgnoreCase) >= 0 &&
                                output.IndexOf("Disk Is not erasable", StringComparison.OrdinalIgnoreCase) < 0;
+            media.ManualLoadRequired = IsManualMediaLoadRequired(output);
             media.HasMedia =
                 output.IndexOf("No disk", StringComparison.OrdinalIgnoreCase) < 0 &&
-                output.IndexOf("Cannot load media", StringComparison.OrdinalIgnoreCase) < 0 &&
+                !media.ManualLoadRequired &&
                 output.IndexOf("No disk / Wrong disk", StringComparison.OrdinalIgnoreCase) < 0 &&
                 !string.IsNullOrEmpty(media.MediaType);
 
@@ -531,6 +568,27 @@ namespace LuxBurn.Services
             Log(log, "Disc capacity: " + (media.CapacitySectors > 0 ? media.CapacitySectors.ToString("N0") + " sectors" : "unknown") + ".");
             Log(log, "Erasable: " + YesNo(media.IsErasable) + ".");
             return media;
+        }
+
+        private static CdrecordMediaInfo ProbeCdrecordMediaWithManualLoad(string cdrecordPath, string device, Action<string> log, Func<bool> confirmManualMediaLoad, CancellationToken cancellationToken)
+        {
+            const int MaxAttempts = 10;
+
+            for (int attempt = 1; attempt <= MaxAttempts; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                CdrecordMediaInfo media = ProbeCdrecordMedia(cdrecordPath, device, log);
+                if (!media.ManualLoadRequired || confirmManualMediaLoad == null)
+                    return media;
+
+                Log(log, "The drive could not load media automatically. Waiting for manual tray closure.");
+                if (!confirmManualMediaLoad())
+                    throw new OperationCanceledException("Burn cancelled while waiting for the tray to be closed by hand.");
+
+                Thread.Sleep(1500);
+            }
+
+            throw new InvalidOperationException("The selected drive still cannot see the disc after several manual load attempts.");
         }
 
         private static string ReadCdrecordValue(string output, string name)
@@ -696,7 +754,7 @@ namespace LuxBurn.Services
             Log(log, "Windows Disc Image Burner is now handling the burn. Follow its window for completion status.");
         }
 
-        private static void RunBurnProcessWithRetries(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
+        private static void RunBurnProcessWithRetries(string fileName, string arguments, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken, Func<bool> confirmManualMediaLoad)
         {
             const int MaxAttempts = 10;
 
@@ -712,6 +770,26 @@ namespace LuxBurn.Services
                 }
                 catch (BurnProcessException ex)
                 {
+                    if (!ex.WriteStarted && IsManualMediaLoadRequired(ex.ProcessOutput))
+                    {
+                        if (confirmManualMediaLoad != null)
+                        {
+                            Log(log, "The drive could not load media automatically. Waiting for manual tray closure.");
+                            if (confirmManualMediaLoad())
+                            {
+                                Thread.Sleep(1500);
+                                continue;
+                            }
+
+                            throw new OperationCanceledException("Burn cancelled while waiting for the tray to be closed by hand.");
+                        }
+
+                        throw new ManualMediaLoadRequiredException(
+                            "The selected drive cannot load the tray automatically. Push the tray fully closed by hand, wait for the disc to settle, then retry.",
+                            ex.ProcessOutput,
+                            ex);
+                    }
+
                     if (ex.WriteStarted || attempt == MaxAttempts)
                         throw;
 
@@ -807,6 +885,15 @@ namespace LuxBurn.Services
                 return message;
 
             return message + Environment.NewLine + Environment.NewLine + "Last tool output:" + Environment.NewLine + TrimForMessage(processOutput, 1600);
+        }
+
+        private static bool IsManualMediaLoadRequired(string processOutput)
+        {
+            if (string.IsNullOrEmpty(processOutput))
+                return false;
+
+            return processOutput.IndexOf("Cannot load media", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   processOutput.IndexOf("Try to load media by hand", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string TrimForMessage(string value, int maxLength)

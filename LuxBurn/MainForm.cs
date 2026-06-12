@@ -1798,6 +1798,21 @@ namespace LuxBurn
             return confirmed;
         }
 
+        private bool ConfirmManualMediaLoad()
+        {
+            if (InvokeRequired)
+                return (bool)Invoke(new Func<bool>(ConfirmManualMediaLoad));
+
+            string message =
+                "The selected drive cannot pull the tray closed automatically." + Environment.NewLine + Environment.NewLine +
+                "Push the tray fully closed by hand, wait for the disc to settle, then click Retry." + Environment.NewLine + Environment.NewLine +
+                "Use Cancel if the disc or tray is not ready.";
+            bool confirmed = ShowLuxMessage(message, MessageBoxButtons.RetryCancel, MessageBoxIcon.Information) == DialogResult.Retry;
+            if (!confirmed)
+                PlayBackSound();
+            return confirmed;
+        }
+
         private static void MakeReadOnlyCombo(ComboBox combo)
         {
             if (combo == null)
@@ -4207,7 +4222,7 @@ namespace LuxBurn
                         if (copies > 1)
                             Log("Starting burn copy " + copyNumber + " of " + copies + ".");
 
-                        _burningService.BurnImage(output, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token);
+                        _burningService.BurnImage(output, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token, ConfirmManualMediaLoad);
                     }
 
                     if (!usingExternalBurner && verifyAfter)
@@ -4312,7 +4327,7 @@ namespace LuxBurn
                     if (copies > 1)
                         Log("Starting burn copy " + copyNumber + " of " + copies + ".");
 
-                    _burningService.BurnImage(image, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token);
+                    _burningService.BurnImage(image, recorderId, eject || copies > 1, burnMethod, writeSpeed, Log, UpdateBurnProgress, _burnCancellation.Token, ConfirmManualMediaLoad);
                 }
 
                 if (!usingExternalBurner && verifyAfter)
