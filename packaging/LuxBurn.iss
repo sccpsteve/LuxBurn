@@ -1,6 +1,6 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.8"
+  #define AppVersion "2.1.9"
 #endif
 #define AppPublisher "sccpsteve"
 #define LegacySourceDir "..\LuxBurn\bin\ReleaseLegacy"

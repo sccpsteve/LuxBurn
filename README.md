@@ -5,13 +5,13 @@
 # LuxBurn
 
 [![License: BSD-2-Clause](https://img.shields.io/badge/License-BSD_2--Clause-orange.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.1.8-blue)]()
+[![Version](https://img.shields.io/badge/version-2.1.9-blue)]()
 
 </div>
 
 ## About
 
-LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 2.1.8 is designed to run from Windows XP through Windows 11.
+LuxBurn is a Windows disc burning utility focused on practical optical media workflows. Version 2.1.9 is designed to run from Windows XP through Windows 11.
 
 The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Windows Disc Image Burner available as a fallback on supported Windows versions.
 
@@ -45,8 +45,8 @@ Download the newest build without typing anything:
 
 | Package | Link |
 |:--|:--|
-| Installer | [Download LuxBurn-v2.1.8-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.8-setup.exe) |
-| Portable | [Download LuxBurn-v2.1.8-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.8-portable.zip) |
+| Installer | [Download LuxBurn-v2.1.9-setup.exe](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.9-setup.exe) |
+| Portable | [Download LuxBurn-v2.1.9-portable.zip](https://github.com/sccpsteve/LuxBurn/releases/download/latest/LuxBurn-v2.1.9-portable.zip) |
 
 The full latest build page is [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest).
 
@@ -85,8 +85,8 @@ package.cmd
 This creates:
 
 ```cmd
-dist\LuxBurn-v2.1.8-portable.zip
-dist\LuxBurn-v2.1.8-setup.exe
+dist\LuxBurn-v2.1.9-portable.zip
+dist\LuxBurn-v2.1.9-setup.exe
 ```
 
 The portable package includes both legacy and modern builds. The setup package is built with Inno Setup 5.6.1, installs the needed offline .NET runtime for the selected build, and creates Start Menu/Desktop shortcuts.
