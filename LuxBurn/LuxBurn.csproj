@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>LuxBurn</RootNamespace>
     <AssemblyName>LuxBurn</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile />
     <FileAlignment>512</FileAlignment>
     <ApplicationIcon>Assets\Brand\LBWindowLogo.ico</ApplicationIcon>

@@ -37,7 +37,7 @@ The app uses a bundled cdrecord/cdrtools backend for CD and DVD writing, with Wi
 | Progress | Shows write progress, buffer, and device buffer. |
 | Abort handling | Aborts backend burns and asks before closing during an active burn. |
 | Verification | Calculates SHA-256, SHA-1, SHA-512, or MD5 checksums. |
-| Windows support | Built with .NET Framework 3.5 SP1 for Windows XP through Windows 11. |
+| Windows support | Ships legacy and modern builds for Windows XP through Windows 11. |
 
 ## Launch
 
@@ -89,7 +89,7 @@ dist\LuxBurn-v2.1.8-portable.zip
 dist\LuxBurn-v2.1.8-setup.exe
 ```
 
-The portable package runs anywhere after extraction. The setup package is built with Inno Setup 5.6.1 for Windows XP compatibility, installs Microsoft .NET Framework 3.5 SP1 when needed, installs LuxBurn through a standard setup wizard, and creates Start Menu/Desktop shortcuts.
+The portable package includes both legacy and modern builds. The setup package is built with Inno Setup 5.6.1, installs the needed offline .NET runtime for the selected build, and creates Start Menu/Desktop shortcuts.
 
 GitHub Actions also runs `package.cmd` on every push to `main`, so each commit produces fresh installer and portable artifacts from the current source. The latest successful `main` build is also published to the [Latest LuxBurn Build](https://github.com/sccpsteve/LuxBurn/releases/tag/latest) release, and the direct download links above always point to that latest build.
 

@@ -6,7 +6,8 @@ cd /d "%~dp0"
 set "APP_NAME=LuxBurn"
 set "APP_VERSION=2.1.8"
 set "ROOT=%CD%"
-set "RELEASE=%ROOT%\LuxBurn\bin\Release"
+set "RELEASE_LEGACY=%ROOT%\LuxBurn\bin\ReleaseLegacy"
+set "RELEASE_MODERN=%ROOT%\LuxBurn\bin\ReleaseModern"
 set "DIST=%ROOT%\dist"
 set "WORK=%ROOT%\build\package"
 set "PORTABLE=%DIST%\%APP_NAME%-v%APP_VERSION%-portable.zip"
@@ -14,8 +15,8 @@ set "INSTALLER=%DIST%\%APP_NAME%-v%APP_VERSION%-setup.exe"
 set "UPDATE_MANIFEST=%DIST%\%APP_NAME%-update.json"
 set "INNO_DIR=%ROOT%\build\tools\InnoSetup5"
 set "INNO_SETUP=%ROOT%\build\tools\innosetup-5.6.1-unicode.exe"
-set "DOTNET35_URL=https://download.microsoft.com/download/2/0/e/20e90413-712f-438c-988e-fdaa79a8ac3d/dotnetfx35.exe"
 set "DOTNET35=%ROOT%\build\redist\dotnetfx35.exe"
+set "DOTNET40=%ROOT%\build\redist\dotNetFx40_Full_x86_x64.exe"
 set "ISCC="
 set "SEVENZIP="
 
@@ -39,21 +40,43 @@ if not defined SEVENZIP (
 )
 
 echo Creating portable package...
-pushd "%RELEASE%"
+mkdir "%WORK%\Legacy" || exit /b 1
+mkdir "%WORK%\Modern" || exit /b 1
+xcopy "%RELEASE_LEGACY%" "%WORK%\Legacy\" /E /I /Y >nul
+xcopy "%RELEASE_MODERN%" "%WORK%\Modern\" /E /I /Y >nul
+> "%WORK%\Start LuxBurn.cmd" echo @echo off
+>> "%WORK%\Start LuxBurn.cmd" echo setlocal EnableExtensions
+>> "%WORK%\Start LuxBurn.cmd" echo set "MAJOR="
+>> "%WORK%\Start LuxBurn.cmd" echo set "MINOR="
+>> "%WORK%\Start LuxBurn.cmd" echo for /f "tokens=4,5 delims=. " %%%%A in ('ver') do (
+>> "%WORK%\Start LuxBurn.cmd" echo     set "MAJOR=%%%%A"
+>> "%WORK%\Start LuxBurn.cmd" echo     set "MINOR=%%%%B"
+>> "%WORK%\Start LuxBurn.cmd" echo )
+>> "%WORK%\Start LuxBurn.cmd" echo if not defined MAJOR goto legacy
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% GTR 6 goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 2 goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo goto legacy
+>> "%WORK%\Start LuxBurn.cmd" echo :modern
+>> "%WORK%\Start LuxBurn.cmd" echo start "" "%%~dp0Modern\LuxBurn.exe"
+>> "%WORK%\Start LuxBurn.cmd" echo exit /b
+>> "%WORK%\Start LuxBurn.cmd" echo :legacy
+>> "%WORK%\Start LuxBurn.cmd" echo start "" "%%~dp0Legacy\LuxBurn.exe"
+>> "%WORK%\Start LuxBurn.cmd" echo exit /b
+pushd "%WORK%"
 "%SEVENZIP%" a -tzip -mx=9 "%PORTABLE%" * >nul
 popd
 if errorlevel 1 exit /b 1
 
 echo Creating installer package...
 if not exist "%DOTNET35%" (
-    echo Downloading Microsoft .NET Framework 3.5 SP1 standalone installer...
-    if not exist "%ROOT%\build\redist" mkdir "%ROOT%\build\redist"
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '%DOTNET35_URL%' -OutFile '%DOTNET35%'"
-    if errorlevel 1 exit /b 1
+    echo Microsoft .NET Framework 3.5 SP1 standalone installer was not found.
+    echo Expected: %DOTNET35%
+    exit /b 1
 )
 
-if not exist "%DOTNET35%" (
-    echo Microsoft .NET Framework 3.5 SP1 standalone installer was not found.
+if not exist "%DOTNET40%" (
+    echo Microsoft .NET Framework 4 full offline installer was not found.
+    echo Expected: %DOTNET40%
     exit /b 1
 )
 
