@@ -24,13 +24,15 @@ namespace LuxBurn.Services
 
     internal sealed class BurnProcessException : InvalidOperationException
     {
-        public BurnProcessException(string message, bool writeStarted)
+        public BurnProcessException(string message, bool writeStarted, string processOutput)
             : base(message)
         {
             WriteStarted = writeStarted;
+            ProcessOutput = processOutput ?? string.Empty;
         }
 
         public bool WriteStarted { get; private set; }
+        public string ProcessOutput { get; private set; }
     }
 
     internal sealed class DiscRecorderInfo
@@ -469,8 +471,8 @@ namespace LuxBurn.Services
             ValidateCdrecordMediaForBurn(media, imageSectors);
 
             string args =
-                "gracetime=5 dev=" + device +
-                " fs=16m driveropts=burnfree -v -tao";
+                "dev=" + device +
+                " fs=16m -v -data -tao";
 
             string speedArgument = FormatCdrecordSpeedArgument(writeSpeed);
             if (!string.IsNullOrEmpty(speedArgument))
@@ -736,20 +738,30 @@ namespace LuxBurn.Services
             using (Process process = new Process())
             {
                 bool writeStarted = false;
+                object outputLock = new object();
+                StringBuilder processOutput = new StringBuilder();
                 process.StartInfo = startInfo;
                 ProcessProgressState progressState = new ProcessProgressState();
                 progressState.ReadTotalSectors = readTotalSectors;
+                Action<string> captureOutput = delegate(string line)
+                {
+                    lock (outputLock)
+                    {
+                        if (processOutput.Length < 12000)
+                            processOutput.AppendLine(line);
+                    }
+                };
 
                 if (!process.Start())
                     throw new InvalidOperationException("Could not start " + Path.GetFileName(fileName) + ".");
 
                 Thread outputThread = new Thread(new ThreadStart(delegate
                 {
-                    PumpProcessOutput(process.StandardOutput, log, progress, progressState, delegate { writeStarted = true; });
+                    PumpProcessOutput(process.StandardOutput, log, progress, progressState, delegate { writeStarted = true; }, captureOutput);
                 }));
                 Thread errorThread = new Thread(new ThreadStart(delegate
                 {
-                    PumpProcessOutput(process.StandardError, log, progress, progressState, delegate { writeStarted = true; });
+                    PumpProcessOutput(process.StandardError, log, progress, progressState, delegate { writeStarted = true; }, captureOutput);
                 }));
                 outputThread.IsBackground = true;
                 errorThread.IsBackground = true;
@@ -776,8 +788,33 @@ namespace LuxBurn.Services
                 errorThread.Join(2000);
 
                 if (process.ExitCode != 0)
-                    throw new BurnProcessException(Path.GetFileName(fileName) + " failed with exit code " + process.ExitCode + ".", writeStarted);
+                {
+                    string output;
+                    lock (outputLock)
+                    {
+                        output = processOutput.ToString().Trim();
+                    }
+
+                    throw new BurnProcessException(BuildProcessFailureMessage(Path.GetFileName(fileName), process.ExitCode, output), writeStarted, output);
+                }
             }
+        }
+
+        private static string BuildProcessFailureMessage(string toolName, int exitCode, string processOutput)
+        {
+            string message = toolName + " failed with exit code " + exitCode + ".";
+            if (string.IsNullOrEmpty(processOutput))
+                return message;
+
+            return message + Environment.NewLine + Environment.NewLine + "Last tool output:" + Environment.NewLine + TrimForMessage(processOutput, 1600);
+        }
+
+        private static string TrimForMessage(string value, int maxLength)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
+                return value;
+
+            return "..." + value.Substring(value.Length - maxLength);
         }
 
         private sealed class ProcessProgressState
@@ -786,7 +823,7 @@ namespace LuxBurn.Services
             public int LastLoggedProgressPercent = -1;
         }
 
-        private static void PumpProcessOutput(StreamReader reader, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted)
+        private static void PumpProcessOutput(StreamReader reader, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted, Action<string> captureOutput)
         {
             StringBuilder segment = new StringBuilder();
             int value;
@@ -794,15 +831,15 @@ namespace LuxBurn.Services
             {
                 char ch = (char)value;
                 if (ch == '\r' || ch == '\n')
-                    FlushProcessOutputSegment(segment, log, progress, state, writeStarted);
+                    FlushProcessOutputSegment(segment, log, progress, state, writeStarted, captureOutput);
                 else
                     segment.Append(ch);
             }
 
-            FlushProcessOutputSegment(segment, log, progress, state, writeStarted);
+            FlushProcessOutputSegment(segment, log, progress, state, writeStarted, captureOutput);
         }
 
-        private static void FlushProcessOutputSegment(StringBuilder segment, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted)
+        private static void FlushProcessOutputSegment(StringBuilder segment, Action<string> log, Action<BurnProgress> progress, ProcessProgressState state, Action writeStarted, Action<string> captureOutput)
         {
             if (segment == null || segment.Length == 0)
                 return;
@@ -811,6 +848,9 @@ namespace LuxBurn.Services
             segment.Length = 0;
             if (line.Length == 0)
                 return;
+
+            if (captureOutput != null)
+                captureOutput(line);
 
             if (IsCdrecordWriteStartedLine(line) && writeStarted != null)
                 writeStarted();

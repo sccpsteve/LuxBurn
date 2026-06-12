@@ -4129,6 +4129,7 @@ namespace LuxBurn
             bool eject = _ejectAfterBurnCheck == null || _ejectAfterBurnCheck.Checked;
             bool verifyAfter = _verifyAfterBurnCheck != null && _verifyAfterBurnCheck.Checked;
             bool handedOffToWindowsBurner = false;
+            bool burnSucceeded = false;
             bool placeFolderContentsAtRoot = _folderPlacementCombo == null || _folderPlacementCombo.SelectedIndex == 0;
             string folderPlacement = _folderPlacementCombo == null ? "Disc root" : Convert.ToString(_folderPlacementCombo.SelectedItem);
 
@@ -4200,12 +4201,13 @@ namespace LuxBurn
                         Log("Source image SHA-256 after burn: " + hash);
                     }
 
+                    burnSucceeded = true;
                     e.Result = usingExternalBurner;
                 }
                 finally
                 {
                     TryDeleteDirectory(stagingPath);
-                    if (temporaryOutput && !handedOffToWindowsBurner && File.Exists(output))
+                    if (temporaryOutput && !handedOffToWindowsBurner && burnSucceeded && File.Exists(output))
                     {
                         try { File.Delete(output); }
                         catch { }
@@ -4219,7 +4221,7 @@ namespace LuxBurn
                 SetBusy(false, "Ready");
                 CalculateBuildImageInformation();
 
-                if (temporaryOutput && !handedOffToWindowsBurner)
+                if (e.Error == null && temporaryOutput && !handedOffToWindowsBurner)
                 {
                     _burnImageText.Text = string.Empty;
                     _verifyFileText.Text = string.Empty;

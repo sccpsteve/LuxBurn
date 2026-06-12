@@ -1,6 +1,6 @@
 #define AppName "LuxBurn"
 #ifndef AppVersion
-  #define AppVersion "2.1.6"
+  #define AppVersion "2.1.7"
 #endif
 #define AppPublisher "sccpsteve"
 #define SourceDir "..\LuxBurn\bin\Release"
