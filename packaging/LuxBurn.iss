@@ -56,17 +56,20 @@ var
   DotNetInstallExitCode: Integer;
   DotNetRequiresRestart: Boolean;
 
-function IsModernWindows(): Boolean;
+function IsWindows7OrNewer(): Boolean;
+var
+  Version: TWindowsVersion;
+begin
+  GetWindowsVersionEx(Version);
+  Result := (Version.Major > 6) or ((Version.Major = 6) and (Version.Minor >= 1));
+end;
+
+function IsWindows8OrNewer(): Boolean;
 var
   Version: TWindowsVersion;
 begin
   GetWindowsVersionEx(Version);
   Result := (Version.Major > 6) or ((Version.Major = 6) and (Version.Minor >= 2));
-end;
-
-function IsLegacyWindows(): Boolean;
-begin
-  Result := not IsModernWindows();
 end;
 
 function DotNet35InstallFlag(RootKey: Integer): Boolean;
@@ -101,6 +104,16 @@ begin
   Result := DotNet40InstallFlag(HKLM) or DotNet40InstallFlag(HKLM32);
   if (not Result) and IsWin64 then
     Result := DotNet40InstallFlag(HKLM64);
+end;
+
+function IsModernWindows(): Boolean;
+begin
+  Result := IsWindows8OrNewer() or ((IsWindows7OrNewer()) and IsDotNet40Installed());
+end;
+
+function IsLegacyWindows(): Boolean;
+begin
+  Result := not IsModernWindows();
 end;
 
 function CanLaunchModernLuxBurn(): Boolean;
@@ -155,7 +168,7 @@ end;
 
 function SelectedRuntimeName(): String;
 begin
-  if IsModernWindows() then
+  if IsWindows8OrNewer() or ((IsWindows7OrNewer()) and IsDotNet40Installed()) then
     Result := 'Microsoft .NET Framework 4'
   else
     Result := 'Microsoft .NET Framework 3.5 SP1';

@@ -369,17 +369,17 @@ namespace LuxBurn.Services
             return "speed=" + digits;
         }
 
-        private static string FormatCdrecordWriteModeArgument(CdrecordMediaInfo media)
+        private static string[] GetCdrecordWriteModeArguments(CdrecordMediaInfo media)
         {
             string type = (media == null ? string.Empty : media.MediaType) ?? string.Empty;
             if (type.IndexOf("DVD", StringComparison.OrdinalIgnoreCase) >= 0)
-                return "-sao";
+                return new[] { "-sao", string.Empty, "-tao" };
 
             if (type.IndexOf("BD", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 type.IndexOf("Blu", StringComparison.OrdinalIgnoreCase) >= 0)
-                return string.Empty;
+                return new[] { string.Empty, "-sao" };
 
-            return "-tao";
+            return new[] { "-tao", "-sao", string.Empty };
         }
 
         public void EraseDisc(string recorderId, bool fullErase, Action<string> log, Action<BurnProgress> progress, CancellationToken cancellationToken)
@@ -431,20 +431,32 @@ namespace LuxBurn.Services
             if (media == null || !media.HasMedia)
                 throw new InvalidOperationException("No readable disc was detected in the selected drive.");
 
-            if (File.Exists(outputPath))
-                File.Delete(outputPath);
+            string tempOutputPath = CreateTemporarySiblingPath(outputPath);
 
-            string args = "dev=" + device + " f=" + QuoteArgument(outputPath) + " retries=16 -v";
-            Log(log, "Launching readcd backend: readcd.exe " + args);
-            ReportProgress(progress, 0, -1, -1, "Starting copy");
-            RunProcessAndLog(readcdPath, args, log, progress, cancellationToken, media.CapacitySectors, ProcessOutputKind.ReadcdCopy);
+            try
+            {
+                string args = "dev=" + device + " f=" + QuoteArgument(tempOutputPath) + " retries=16 -v";
+                Log(log, "Launching readcd backend: readcd.exe " + args);
+                ReportProgress(progress, 0, -1, -1, "Starting copy");
+                RunProcessAndLog(readcdPath, args, log, progress, cancellationToken, media.CapacitySectors, ProcessOutputKind.ReadcdCopy);
 
-            FileInfo image = new FileInfo(outputPath);
-            if (!image.Exists || image.Length == 0)
-                throw new InvalidOperationException("readcd completed, but no image data was written.");
+                FileInfo image = new FileInfo(tempOutputPath);
+                if (!image.Exists || image.Length == 0)
+                    throw new InvalidOperationException("readcd completed, but no image data was written.");
 
-            ReportProgress(progress, 100, -1, -1, "Copy complete");
-            Log(log, string.Format("Copied image size: {0:N0} bytes.", image.Length));
+                if (File.Exists(outputPath))
+                    File.Delete(outputPath);
+
+                File.Move(tempOutputPath, outputPath);
+                image = new FileInfo(outputPath);
+
+                ReportProgress(progress, 100, -1, -1, "Copy complete");
+                Log(log, string.Format("Copied image size: {0:N0} bytes.", image.Length));
+            }
+            finally
+            {
+                TryDeleteFile(tempOutputPath);
+            }
         }
 
         public string CaptureDriveCommand(string recorderId, string command, Action<string> log)
@@ -499,25 +511,47 @@ namespace LuxBurn.Services
             Log(log, string.Format("Image size: {0:N0} bytes ({1:N0} sectors).", imageFile.Length, imageSectors));
             ValidateCdrecordMediaForBurn(media, imageSectors);
 
-            string writeModeArgument = FormatCdrecordWriteModeArgument(media);
-            string args =
-                "dev=" + device +
-                " fs=16m -v -data";
-
-            if (!string.IsNullOrEmpty(writeModeArgument))
-                args += " " + writeModeArgument;
-
             string speedArgument = FormatCdrecordSpeedArgument(writeSpeed);
-            if (!string.IsNullOrEmpty(speedArgument))
-                args += " " + speedArgument;
-
-            args += " " + QuoteArgument(imagePath);
-
-            Log(log, "Launching cdrecord backend: cdrecord.exe " + args);
-            if (!string.IsNullOrEmpty(writeModeArgument))
-                Log(log, "cdrecord write mode: " + writeModeArgument + ".");
+            string[] writeModeArguments = GetCdrecordWriteModeArguments(media);
+            BurnProcessException lastModeException = null;
             ReportProgress(progress, 0, 0, 0, "Starting write");
-            RunBurnProcessWithRetries(cdrecordPath, args, log, progress, cancellationToken, confirmManualMediaLoad);
+            for (int i = 0; i < writeModeArguments.Length; i++)
+            {
+                string writeModeArgument = writeModeArguments[i];
+                string args =
+                    "dev=" + device +
+                    " fs=16m -v -data";
+
+                if (!string.IsNullOrEmpty(writeModeArgument))
+                    args += " " + writeModeArgument;
+
+                if (!string.IsNullOrEmpty(speedArgument))
+                    args += " " + speedArgument;
+
+                args += " " + QuoteArgument(imagePath);
+
+                Log(log, "Launching cdrecord backend: cdrecord.exe " + args);
+                Log(log, string.IsNullOrEmpty(writeModeArgument) ? "cdrecord write mode: drive default." : "cdrecord write mode: " + writeModeArgument + ".");
+
+                try
+                {
+                    RunBurnProcessWithRetries(cdrecordPath, args, log, progress, cancellationToken, confirmManualMediaLoad);
+                    lastModeException = null;
+                    break;
+                }
+                catch (BurnProcessException ex)
+                {
+                    if (ex.WriteStarted || !IsWriteModeRejected(ex.ProcessOutput) || i == writeModeArguments.Length - 1)
+                        throw;
+
+                    lastModeException = ex;
+                    Log(log, "The drive rejected that write mode before writing began. Trying another mode.");
+                }
+            }
+
+            if (lastModeException != null)
+                throw lastModeException;
+
             ReportProgress(progress, 100, 100, 100, "Burn complete");
             Log(log, "cdrecord reported write operation complete.");
 
@@ -790,6 +824,9 @@ namespace LuxBurn.Services
                             ex);
                     }
 
+                    if (!ex.WriteStarted && IsWriteModeRejected(ex.ProcessOutput))
+                        throw;
+
                     if (ex.WriteStarted || attempt == MaxAttempts)
                         throw;
 
@@ -900,6 +937,17 @@ namespace LuxBurn.Services
 
             return processOutput.IndexOf("Cannot load media", StringComparison.OrdinalIgnoreCase) >= 0 ||
                    processOutput.IndexOf("Try to load media by hand", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsWriteModeRejected(string processOutput)
+        {
+            if (string.IsNullOrEmpty(processOutput))
+                return false;
+
+            return processOutput.IndexOf("Illegal write mode", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   processOutput.IndexOf("does not support TAO", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   processOutput.IndexOf("does not support SAO", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   processOutput.IndexOf("unsupported write mode", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string TrimForMessage(string value, int maxLength)
@@ -1193,7 +1241,7 @@ namespace LuxBurn.Services
                     return recorders[i];
             }
 
-            return recorders[0];
+            throw new InvalidOperationException("The selected optical drive is no longer available. Refresh drives and choose the target again.");
         }
 
         private static void PreflightBurn(object format, object recorder, long imageSectors, Action<string> log)
@@ -1756,27 +1804,6 @@ namespace LuxBurn.Services
                     return candidate;
             }
 
-            string path = Environment.GetEnvironmentVariable("PATH");
-            if (string.IsNullOrEmpty(path))
-                return string.Empty;
-
-            string[] directories = path.Split(Path.PathSeparator);
-            for (int i = 0; i < directories.Length; i++)
-            {
-                if (string.IsNullOrEmpty(directories[i]))
-                    continue;
-
-                try
-                {
-                    string candidate = Path.Combine(directories[i], "cdrecord.exe");
-                    if (File.Exists(candidate))
-                        return candidate;
-                }
-                catch
-                {
-                }
-            }
-
             return string.Empty;
         }
 
@@ -1809,28 +1836,32 @@ namespace LuxBurn.Services
                     return candidate;
             }
 
-            string path = Environment.GetEnvironmentVariable("PATH");
-            if (string.IsNullOrEmpty(path))
-                return string.Empty;
-
-            string[] directories = path.Split(Path.PathSeparator);
-            for (int i = 0; i < directories.Length; i++)
-            {
-                if (string.IsNullOrEmpty(directories[i]))
-                    continue;
-
-                try
-                {
-                    string candidate = Path.Combine(directories[i], "readcd.exe");
-                    if (File.Exists(candidate))
-                        return candidate;
-                }
-                catch
-                {
-                }
-            }
-
             return string.Empty;
+        }
+
+        private static string CreateTemporarySiblingPath(string finalPath)
+        {
+            string directory = Path.GetDirectoryName(finalPath);
+            if (string.IsNullOrEmpty(directory))
+                directory = Directory.GetCurrentDirectory();
+
+            string fileName = Path.GetFileName(finalPath);
+            return Path.Combine(directory, fileName + ".partial-" + Guid.NewGuid().ToString("N"));
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch
+            {
+            }
         }
 
         private static string QuoteArgument(string value)

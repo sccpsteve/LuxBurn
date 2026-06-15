@@ -71,7 +71,8 @@ run-xp.cmd
 Open the built executable directly:
 
 ```cmd
-LuxBurn\bin\Release\LuxBurn.exe
+LuxBurn\bin\ReleaseLegacy\LuxBurn.exe
+LuxBurn\bin\ReleaseModern\LuxBurn.exe
 ```
 
 ## Release Artifact

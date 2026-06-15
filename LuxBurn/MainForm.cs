@@ -1524,7 +1524,7 @@ namespace LuxBurn
             AddInfoRow(page, "Number of Files:", _buildFileCountLabel = CreateInfoValueLabel(), 18, 24);
             AddInfoRow(page, "Number of Folders:", _buildFolderCountLabel = CreateInfoValueLabel(), 18, 48);
             AddInfoRow(page, "Total File Size:", _buildTotalSizeLabel = CreateInfoValueLabel(), 18, 86);
-            AddInfoRow(page, "Image Size:", _buildImageSizeLabel = CreateInfoValueLabel(), 18, 110);
+            AddInfoRow(page, "Est. Image Size:", _buildImageSizeLabel = CreateInfoValueLabel(), 18, 110);
 
             Label media = CreateInfoValueLabel();
             media.Text = "Auto";
@@ -1698,13 +1698,8 @@ namespace LuxBurn
             advanced.TabPages.Add(restrictions);
 
             TabPage boot = CreatePanePage("Bootable Disc");
-            boot.Controls.Add(CreateReadOnlyCheckBox("Make Image Bootable", 18, 24, false));
-            AddLabel(boot, "Boot Image:", 18, 62);
-            TextBox bootImage = CreateTextBox(96, 58, 210);
-            boot.Controls.Add(bootImage);
-            Button browse = CreateButton("Browse", 312, 57, 62, 25);
-            browse.Click += delegate { BrowseOpenImage(bootImage); };
-            boot.Controls.Add(browse);
+            Label note = CreateNoteLabel("Bootable image creation is not available in the current ISO builder.", 18, 24, 340, 36);
+            boot.Controls.Add(note);
             advanced.TabPages.Add(boot);
             return page;
         }
@@ -4533,11 +4528,19 @@ namespace LuxBurn
                 _actualHashText.Text = actual;
 
                 if (expected.Length > 0)
-                    Log(string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase) ? "Checksum matches." : "Checksum does not match.");
+                {
+                    bool matches = string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+                    Log(matches ? "Checksum matches." : "Checksum does not match.");
+                    if (matches)
+                        PlayTaskSuccessSound();
+                    else
+                        ShowLuxMessage("Checksum does not match.", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
                 else
+                {
                     Log("Checksum calculated: " + actual);
-
-                PlaySelectSound();
+                    PlaySelectSound();
+                }
             });
         }
 

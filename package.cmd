@@ -55,6 +55,10 @@ xcopy "%RELEASE_MODERN%" "%WORK%\Modern\" /E /I /Y >nul
 >> "%WORK%\Start LuxBurn.cmd" echo if not defined MAJOR goto legacy
 >> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% GTR 6 goto modern
 >> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 2 goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 1 reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Install ^>nul 2^>nul ^&^& goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 1 reg query "HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release ^>nul 2^>nul ^&^& goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 1 reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\NET Framework Setup\NDP\v4\Full" /v Install ^>nul 2^>nul ^&^& goto modern
+>> "%WORK%\Start LuxBurn.cmd" echo if %%MAJOR%% EQU 6 if %%MINOR%% GEQ 1 reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\NET Framework Setup\NDP\v4\Full" /v Release ^>nul 2^>nul ^&^& goto modern
 >> "%WORK%\Start LuxBurn.cmd" echo goto legacy
 >> "%WORK%\Start LuxBurn.cmd" echo :modern
 >> "%WORK%\Start LuxBurn.cmd" echo start "" "%%~dp0Modern\LuxBurn.exe"
